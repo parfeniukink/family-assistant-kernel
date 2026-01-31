@@ -13,11 +13,12 @@ Notes:
 """
 
 import functools
-from datetime import date
+from datetime import date, datetime
 from typing import TypeVar
 
 from sqlalchemy import (
     DATE,
+    TIMESTAMP,
     Boolean,
     ForeignKey,
     Integer,
@@ -424,3 +425,43 @@ class CostShortcut(Base, DefaultColumnsMixin):
             raise ValueError("Cost value must be >= 0")
         else:
             return address
+
+
+class HTTPRequestLog(Base):
+    """Table includes 'request_logs'.
+
+    Stores HTTP request analytics data for monitoring
+    and security auditing purposes.
+
+    ARGS
+        ip_address: client IP (IPv4/IPv6)
+        method: HTTP method (GET, POST, etc.)
+        path: request path
+        status_code: response status code
+        user_agent: User-Agent header
+        referer: Referer header
+        country: country from GeoIP header
+        city: city from GeoIP header
+        user_id: authenticated user ID
+        duration_ms: request processing time in ms
+        created_at: timestamp with timezone
+        content_length: request content length
+    """
+
+    __tablename__ = "http_request_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ip_address: Mapped[str] = mapped_column(String(45), index=True)
+    method: Mapped[str] = mapped_column(String(10))
+    path: Mapped[str] = mapped_column(String(500))
+    status_code: Mapped[int] = mapped_column()
+    user_agent: Mapped[str] = mapped_column(String(500))
+    referer: Mapped[str | None] = mapped_column(String(500), default=None)
+    country: Mapped[str | None] = mapped_column(String(100), default=None)
+    city: Mapped[str | None] = mapped_column(String(100), default=None)
+    user_id: Mapped[int | None] = mapped_column(default=None)
+    duration_ms: Mapped[int] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), index=True
+    )
+    content_length: Mapped[int | None] = mapped_column(default=None)

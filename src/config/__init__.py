@@ -55,8 +55,18 @@ class CacheSettings(BaseModel):
 
 class CORSSettings(BaseModel):
     allow_origins: list[str] = ["*"]
-    allow_methods: list[str] = ["*"]
-    allow_headers: list[str] = ["*"]
+    allow_methods: list[str] = [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS",
+    ]
+    allow_headers: list[str] = [
+        "Authorization",
+        "Content-Type",
+    ]
     allow_credentials: bool = True
     expose_headers: list[str] = []
     max_age: int = 600

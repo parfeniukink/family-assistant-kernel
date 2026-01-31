@@ -7,9 +7,11 @@ __all__ = (
     "InternalData",
     "OffsetPagination",
     "PublicData",
+    "RequestAnalyticsMiddleware",
     "Response",
     "ResponseMulti",
     "ResponseMultiPaginated",
+    "SecurityHeadersMiddleware",
     "_TPublicData",
     "database",
     "dates",
@@ -22,8 +24,10 @@ __all__ = (
 
 
 from . import database, dates, errors, factories, hooks, middleware
+from .analytics import RequestAnalyticsMiddleware
 from .cache import Cache
 from .entities import InternalData
+from .middleware import SecurityHeadersMiddleware
 from .responses import (
     ErrorDetail,
     ErrorResponse,

@@ -44,6 +44,8 @@ from slowapi.util import get_remote_address
 from src import http
 from src.config import settings
 from src.infrastructure import errors, factories, hooks, middleware
+from src.infrastructure.analytics import RequestAnalyticsMiddleware
+from src.infrastructure.middleware import SecurityHeadersMiddleware
 
 logger.add(
     settings.logging.file,
@@ -68,10 +70,7 @@ exception_handlers = (
     else {}
 )
 
-middlewares: list[tuple] = [
-    (CORSMiddleware, middleware.FASTAPI_CORS_MIDDLEWARE_OPTIONS),
-]
-
+middlewares: list[tuple] = []
 
 if settings.sentry_dsn and settings.debug is False:
     sentry_sdk.init(
@@ -100,6 +99,15 @@ if settings.sentry_dsn and settings.debug is False:
     middlewares.append((SentryAsgiMiddleware, {}))
 
     logger.success("Sentry initialized")
+
+if settings.debug is False:
+    middlewares.extend(
+        [
+            (RequestAnalyticsMiddleware, {}),
+            (CORSMiddleware, middleware.FASTAPI_CORS_MIDDLEWARE_OPTIONS),
+            (SecurityHeadersMiddleware, {}),
+        ]
+    )
 
 
 app: FastAPI = factories.asgi_app(

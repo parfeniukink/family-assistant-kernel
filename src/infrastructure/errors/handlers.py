@@ -163,4 +163,20 @@ def unhandled_error_handler(_: Request, error: Exception) -> JSONResponse:
 async def rate_limit_exceeded_handler(
     request: Request, exc: RateLimitExceeded
 ) -> JSONResponse:
-    return JSONResponse(None, status_code=429)
+    response = ErrorResponse(
+        message="Rate limit exceeded. Try again later.",
+    )
+
+    retry_after = "60"
+    if exc.detail:
+        detail_str = str(exc.detail)
+        if "per minute" in detail_str.lower():
+            retry_after = "60"
+        elif "per hour" in detail_str.lower():
+            retry_after = "3600"
+
+    return JSONResponse(
+        content=response.model_dump(by_alias=True),
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        headers={"Retry-After": retry_after},
+    )
