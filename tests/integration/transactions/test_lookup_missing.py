@@ -15,7 +15,7 @@ BASE_URL: Final = "/transactions/lookup-missing"
 
 @pytest.mark.skip("Monobank is not integrated yet")
 @pytest.mark.use_db
-async def test_lookup_missing_UNAUTHORIZED(anonymous):
+async def test_lookup_missing_UNAUTHORIZED(anonymous: httpx.AsyncClient):
     response: httpx.Response = await anonymous.post(BASE_URL)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 

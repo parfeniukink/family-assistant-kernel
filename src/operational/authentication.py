@@ -7,6 +7,7 @@ import time
 import jwt
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from loguru import logger
 
 from src import domain
 from src.infrastructure import InternalData, database, errors, security
@@ -25,8 +26,11 @@ async def authorize(
     """Dependency-injection for FastAPI."""
 
     if creds is None:
-        raise errors.AuthenticationError(
-            "Authorization HTTP header is not specified"
+        return errors.authentication_error(  # type: ignore
+            None,
+            errors.AuthenticationError(
+                "Authorization HTTP header is not specified"
+            ),
         )
 
     token = creds.credentials
@@ -34,20 +38,28 @@ async def authorize(
     try:
         payload = security.decode_token(token)
         if payload.get("type") != "access":
-            raise errors.AuthenticationError("Invalid token type")
+            return errors.authentication_error(  # type: ignore
+                None, errors.AuthenticationError("Invalid token type")
+            )
         user_id = int(payload["sub"])
     except jwt.ExpiredSignatureError:
-        raise errors.AuthenticationError("Token expired")
+        return errors.authentication_error(  # type: ignore
+            None, errors.AuthenticationError("Token expired")
+        )
     except (jwt.InvalidTokenError, KeyError, ValueError) as error:
-        raise errors.AuthenticationError("Invalid token") from error
-
+        logger.error(error)
+        return errors.authentication_error(  # type: ignore
+            None, errors.AuthenticationError("Invalid token")
+        )
     else:
         try:
             user = await domain.users.UserRepository().user_by_id(user_id)
         except Exception as error:
-            raise errors.AuthenticationError("User not found") from error
+            logger.error(error)
+            return errors.authentication_error(  # type: ignore
+                None, errors.AuthenticationError("Invlid credentials")
+            )
         else:
-
             return domain.users.User.from_instance(user)
 
 
@@ -59,16 +71,20 @@ async def get_tokens_pair(username: str, password: str) -> TokensPair:
             username
         )
     except errors.NotFoundError:
-        # Generic error to not reveal if username exists
-        raise errors.AuthenticationError("Invalid credentials")
+        return errors.authentication_error(  # type: ignore
+            None, errors.AuthenticationError("Invalid credentials")
+        )
     else:
-
         # Verify password
         if not user.password_hash:
-            raise errors.AuthenticationError("Invalid credentials")
+            return errors.authentication_error(  # type: ignore
+                None, errors.AuthenticationError("Invalid credentials")
+            )
 
         if not security.verify_password(password, user.password_hash):
-            raise errors.AuthenticationError("Invalid credentials")
+            return errors.authentication_error(  # type: ignore
+                None, errors.AuthenticationError("Invalid credentials")
+            )
 
         # Create tokens
         access_token = security.create_access_token(user.id)
@@ -90,17 +106,23 @@ async def refresh_tokens(refresh_token: str) -> TokensPair:
         # Decode and validate the refresh token
         payload = security.decode_token(refresh_token)
     except jwt.ExpiredSignatureError:
-        raise errors.AuthenticationError("Refresh token expired")
+        return errors.authentication_error(  # type: ignore
+            None, errors.AuthenticationError("Refresh token expired")
+        )
     except (jwt.InvalidTokenError, KeyError, ValueError):
-        raise errors.AuthenticationError("Invalid refresh token")
+        return errors.authentication_error(  # type: ignore
+            None, errors.AuthenticationError("Refresh token invalid")
+        )
     else:
         if (exp := payload.get("exp")) and ((exp - int(time.time())) < 0):
-            raise errors.AuthenticationError(
-                "Token has been expired. Please authorize again"
+            return errors.authentication_error(  # type: ignore
+                None, errors.AuthenticationError("Token expired")
             )
 
         if payload.get("type") != "refresh":
-            raise errors.AuthenticationError("Invalid token type")
+            return errors.authentication_error(  # type: ignore
+                None, errors.AuthenticationError("Token invalid")
+            )
         else:
             user_id = int(payload["sub"])
 

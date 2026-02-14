@@ -5,6 +5,7 @@ __all__ = (
     "DatabaseError",
     "NotFoundError",
     "UnprocessableRequestError",
+    "authentication_error",
     "base_error_handler",
     "database_error_handler",
     "fastapi_http_exception_handler",
@@ -24,6 +25,7 @@ from .exceptions import (
     UnprocessableRequestError,
 )
 from .handlers import (
+    authentication_error,
     base_error_handler,
     database_error_handler,
     fastapi_http_exception_handler,

@@ -7,7 +7,11 @@ from src import domain
 from src import operational as op
 from src.infrastructure import ResponseMulti
 
-from ..contracts import Equity, TransactionBasicAnalytics
+from ..contracts import (
+    Equity,
+    TransactionAnalyticsResponse,
+    TransactionBasicAnalytics,
+)
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
@@ -54,7 +58,7 @@ async def transaction_analytics_basic(
         ),
     ] = None,
     _: domain.users.User = Depends(op.authorize),
-) -> ResponseMulti[TransactionBasicAnalytics]:
+) -> TransactionAnalyticsResponse:
     """basic analytics that supports a set of some filters.
 
     WORKFLOW:
@@ -72,15 +76,14 @@ async def transaction_analytics_basic(
         if the 'pattern' is specified you WON'T see EXCHANGES in your analytics
     """
 
-    instances: tuple[domain.transactions.TransactionsBasicAnalytics, ...] = (
-        await op.transactions_basic_analytics(
-            period, start_date, end_date, pattern
-        )
+    result = await op.transactions_basic_analytics(
+        period, start_date, end_date, pattern
     )
 
-    return ResponseMulti[TransactionBasicAnalytics](
+    return TransactionAnalyticsResponse(
         result=[
             TransactionBasicAnalytics.from_instance(instance)
-            for instance in instances
-        ]
+            for instance in result.per_currency
+        ],
+        total_ratio=result.total_ratio,
     )

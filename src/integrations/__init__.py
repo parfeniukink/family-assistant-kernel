@@ -2,4 +2,9 @@
 Integrations Package includes all the available integrations in the app.
 """
 
-from . import monobank  # noqa: F401
+__all__ = (
+    "monobank",
+    "nbu",
+)
+
+from . import monobank, nbu  # noqa: F401

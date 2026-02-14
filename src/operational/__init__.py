@@ -31,7 +31,6 @@ __all__ = (
     "notify_about_worker",
     "refresh_tokens",
     "transactions_basic_analytics",
-    "transactions_chart_analytics",
     "update_cost",
     "update_income",
     "user_notifications",
@@ -40,10 +39,7 @@ __all__ = (
 )
 
 
-from .analytics import (
-    transactions_basic_analytics,
-    transactions_chart_analytics,
-)
+from .analytics import transactions_basic_analytics
 from .authentication import authorize, get_tokens_pair, refresh_tokens
 from .notifications import (
     notify_about_big_cost,

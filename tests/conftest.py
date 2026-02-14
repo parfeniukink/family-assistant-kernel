@@ -273,8 +273,8 @@ def patch_cache_service(mocker) -> MagicMock:
 
 @pytest.fixture(autouse=True)
 def _mock_httpx_requests():
-    with respx.mock(assert_all_mocked=True):
-        yield
+    with respx.mock(assert_all_mocked=True) as respx_mock:
+        yield respx_mock
 
 
 # ==================================================

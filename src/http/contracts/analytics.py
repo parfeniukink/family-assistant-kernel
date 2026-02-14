@@ -15,15 +15,13 @@ from src.infrastructure import IncomeSource, PublicData
 
 from .currency import Currency
 
-TEST = 12
-
 
 class CostsByCategory(PublicData):
     """Represents expences for specific cost categories."""
 
     id: int = Field(description="The ID of the category", examples=[1, 2, 3])
     name: str = Field(
-        description="The name of the category", examples=["💸 Taxes"]
+        description="The name of the category", examples=["Taxes"]
     )
     total: float = Field(description="The total for the selected category")
     ratio: float = Field(
@@ -60,24 +58,14 @@ class IncomesAnalytics(PublicData):
 
 
 class TransactionBasicAnalytics(PublicData):
+    """Per-currency analytics block."""
+
     currency: Currency
     costs: CostsAnalytics
     incomes: IncomesAnalytics
     from_exchanges: float = Field(
         description="The impact of currency exchange transactions"
     )
-    total_ratio: float = Field(
-        description=(
-            "The ratio all the outbound to all the inbound totals in %"
-        ),
-    )
-
-    @field_validator("total_ratio", mode="after")
-    @classmethod
-    def _round_output_value(cls, value: float) -> float:
-        """round to 1 decimal places."""
-
-        return round(value, 1)
 
     @functools.singledispatchmethod
     @classmethod
@@ -125,5 +113,20 @@ class TransactionBasicAnalytics(PublicData):
             from_exchanges=domain.transactions.pretty_money(
                 instance.from_exchanges
             ),
-            total_ratio=instance.total_ratio,
         )
+
+
+class TransactionAnalyticsResponse(PublicData):
+    """Response model for transaction analytics endpoint."""
+
+    result: list[TransactionBasicAnalytics]
+    total_ratio: float = Field(
+        description="Currency-independent ratio (all converted to USD)"
+    )
+
+    @field_validator("total_ratio", mode="after")
+    @classmethod
+    def _round_output_value(cls, value: float) -> float:
+        """round to 1 decimal places."""
+
+        return round(value, 1)

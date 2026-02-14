@@ -1,1 +1,1 @@
-from . import equity, notifications, transactions, users
+from . import equity, exchange_rates, notifications, transactions, users

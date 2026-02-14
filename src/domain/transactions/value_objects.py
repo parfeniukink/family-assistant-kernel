@@ -155,34 +155,12 @@ class TransactionsBasicAnalytics(InternalData):
     incomes: IncomesAnalytics = IncomesAnalytics()
     from_exchanges: int = 0
 
-    @property
-    def total_ratio(self) -> float:
-        """all the 'inbounds incomes' to all the 'outbounds expences'.
 
-        notes:
-            outbounds = sum of all the costs totals
-            inbounds = sum of all the incomes totals
+class BasicAnalyticsResult(InternalData):
+    """Result of basic analytics computation.
 
-        workflow:
-            if inbounds <=0, then ratio = 100% (all are costs)
-            append ``from_exchanges`` to ``incomes.total`` only in case
-                the value > 0. otherwise it means selling money which
-                neven means that it is a real cost.
-        """
+    Contains per-currency analytics and a currency-independent total ratio.
+    """
 
-        inbounds = (
-            (self.incomes.total + self.from_exchanges)
-            if self.from_exchanges > 0
-            else self.incomes.total
-        )
-        outbounds = self.costs.total
-
-        if inbounds <= 0:
-            return 100.0
-
-        try:
-            result: float = outbounds / inbounds * 100
-        except ZeroDivisionError:
-            return 100.0
-        else:
-            return result
+    per_currency: tuple[TransactionsBasicAnalytics, ...]
+    total_ratio: float

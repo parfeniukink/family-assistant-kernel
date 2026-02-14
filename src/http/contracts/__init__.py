@@ -4,6 +4,7 @@ from .analytics import (
     CostsByCategory,
     IncomesAnalytics,
     IncomesBySource,
+    TransactionAnalyticsResponse,
     TransactionBasicAnalytics,
 )
 from .currency import Currency, CurrencyCreateBody

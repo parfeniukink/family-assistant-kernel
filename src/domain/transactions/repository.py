@@ -775,24 +775,37 @@ class TransactionRepository(database.Repository):
                 except Exception as error:
                     raise errors.DatabaseError(str(error)) from error
 
+                # Extract results inside session context
+                # while session is active
+                currencies = list(_currencies.scalars().all())
+                costs_totals_by_currency = list(_costs_totals_by_currency)
+                cost_totals_by_currency_and_category = list(
+                    _cost_totals_by_currency_and_category
+                )
+                incomes_totals_by_currency = list(_incomes_totals_by_currency)
+                income_totals_by_currency_and_source = list(
+                    _income_totals_by_currency_and_source
+                )
+                exchanges = list(_exchanges.scalars().all())
+
         results: dict[int, TransactionsBasicAnalytics] = {
             currency.id: TransactionsBasicAnalytics(
                 currency=Currency.from_instance(currency)
             )
-            for currency in _currencies.scalars().all()
+            for currency in currencies
         }
 
         # update costs currency total
-        for currency_id, total in _costs_totals_by_currency:
+        for currency_id, total in costs_totals_by_currency:
             results[currency_id].costs.total = total
 
         # update incomes currency total
-        for currency_id, total in _incomes_totals_by_currency:
+        for currency_id, total in incomes_totals_by_currency:
             results[currency_id].incomes.total = total
 
         # update cost categories totals
         for currency_id, items in itertools.groupby(
-            _cost_totals_by_currency_and_category,
+            cost_totals_by_currency_and_category,
             key=operator.attrgetter("currency_id"),
         ):
             results[currency_id].costs.categories += [
@@ -807,7 +820,7 @@ class TransactionRepository(database.Repository):
 
         # update incomes sources totals
         for currency_id, items in itertools.groupby(
-            _income_totals_by_currency_and_source,
+            income_totals_by_currency_and_source,
             key=operator.attrgetter("currency_id"),
         ):
             results[currency_id].incomes.sources += [
@@ -815,8 +828,257 @@ class TransactionRepository(database.Repository):
                 for _, source, total in items
             ]
 
-        for item in _exchanges.scalars().all():
+        for item in exchanges:
             results[item.from_currency_id].from_exchanges -= item.from_value
             results[item.to_currency_id].from_exchanges += item.to_value
 
         return tuple(results.values())
+
+    async def daily_totals_by_currency(
+        self,
+        start_date: date,
+        end_date: date,
+        pattern: str | None = None,
+    ) -> tuple[list[tuple], list[tuple]]:
+        """Get daily totals grouped by (currency_name, date).
+
+        Returns:
+            Tuple of (cost_rows, income_rows) where each row is
+            (currency_name, date, daily_total_cents)
+        """
+
+        # Build filters
+        cost_filters = [database.Cost.timestamp.between(start_date, end_date)]
+        income_filters = [
+            database.Income.timestamp.between(start_date, end_date)
+        ]
+
+        if pattern:
+            cost_filters.append(database.Cost.name.ilike(f"%{pattern}%"))
+            income_filters.append(database.Income.name.ilike(f"%{pattern}%"))
+
+        # Query for daily cost totals by currency
+        cost_query = (
+            select(
+                database.Currency.name.label("currency_name"),
+                database.Cost.timestamp.label("date"),
+                func.sum(database.Cost.value).label("total"),
+            )
+            .join(
+                database.Currency,
+                database.Cost.currency_id == database.Currency.id,
+            )
+            .where(*cost_filters)
+            .group_by(database.Currency.name, database.Cost.timestamp)
+            .order_by(database.Currency.name, database.Cost.timestamp)
+        )
+
+        # Query for daily income totals by currency
+        income_query = (
+            select(
+                database.Currency.name.label("currency_name"),
+                database.Income.timestamp.label("date"),
+                func.sum(database.Income.value).label("total"),
+            )
+            .join(
+                database.Currency,
+                database.Income.currency_id == database.Currency.id,
+            )
+            .where(*income_filters)
+            .group_by(database.Currency.name, database.Income.timestamp)
+            .order_by(database.Currency.name, database.Income.timestamp)
+        )
+
+        async with self.query.session as session:
+            async with session.begin():
+                cost_result = await session.execute(cost_query)
+                income_result = await session.execute(income_query)
+
+                cost_rows = [
+                    (row.currency_name, row.date, row.total)
+                    for row in cost_result.all()
+                ]
+                income_rows = [
+                    (row.currency_name, row.date, row.total)
+                    for row in income_result.all()
+                ]
+
+        return cost_rows, income_rows
+
+    async def first_transaction(self) -> Transaction | None:
+        """Get the earliest transaction across all transaction types."""
+
+        CostCategoryAlias = aliased(database.CostCategory)
+        CurrencyAlias = aliased(database.Currency)
+        UserAlias = aliased(database.User)
+
+        cost_query = (
+            select(
+                database.Cost.id.label("id"),
+                database.Cost.name.label("name"),
+                CostCategoryAlias.name.label("icon"),
+                database.Cost.value.label("value"),
+                database.Cost.timestamp.label("timestamp"),
+                func.cast("cost", String).label("operation_type"),
+                CurrencyAlias.name.label("currency_name"),
+                CurrencyAlias.sign.label("currency_sign"),
+                CurrencyAlias.id.label("currency_id"),
+                UserAlias.name.label("user_name"),
+            )
+            .join(CurrencyAlias, database.Cost.currency)
+            .join(CostCategoryAlias, database.Cost.category)
+            .join(UserAlias, database.Cost.user)
+        )
+
+        income_query = (
+            select(
+                database.Income.id.label("id"),
+                database.Income.name.label("name"),
+                func.cast("🤑", String).label("icon"),
+                database.Income.value.label("value"),
+                database.Income.timestamp.label("timestamp"),
+                func.cast("income", String).label("operation_type"),
+                CurrencyAlias.name.label("currency_name"),
+                CurrencyAlias.sign.label("currency_sign"),
+                CurrencyAlias.id.label("currency_id"),
+                UserAlias.name.label("user_name"),
+            )
+            .join(CurrencyAlias, database.Income.currency)
+            .join(UserAlias, database.Income.user)
+        )
+
+        exchange_query = (
+            select(
+                database.Exchange.id.label("id"),
+                func.cast("exchange", String).label("name"),
+                func.cast("💱", String).label("icon"),
+                database.Exchange.to_value.label("value"),
+                database.Exchange.timestamp.label("timestamp"),
+                func.cast("exchange", String).label("operation_type"),
+                CurrencyAlias.name.label("currency_name"),
+                CurrencyAlias.sign.label("currency_sign"),
+                CurrencyAlias.id.label("currency_id"),
+                UserAlias.name.label("user_name"),
+            )
+            .join(CurrencyAlias, database.Exchange.to_currency)
+            .join(UserAlias, database.Exchange.user)
+        )
+
+        final_query = (
+            union_all(cost_query, income_query, exchange_query)
+            .order_by("timestamp")
+            .order_by("id")
+            .limit(1)
+        )
+
+        async with self.query.session as session:
+            async with session.begin():
+                result = await session.execute(final_query)
+                row = result.first()
+
+                if row is None:
+                    return None
+
+                return Transaction(
+                    id=row.id,
+                    name=row.name,
+                    icon=row.icon,
+                    value=row.value,
+                    timestamp=row.timestamp,
+                    operation=row.operation_type,
+                    currency=Currency(
+                        id=row.currency_id,
+                        name=row.currency_name,
+                        sign=row.currency_sign,
+                    ),
+                    user=row.user_name,
+                )
+
+    async def last_transaction(self) -> Transaction | None:
+        """Get the most recent transaction across all transaction types."""
+
+        CostCategoryAlias = aliased(database.CostCategory)
+        CurrencyAlias = aliased(database.Currency)
+        UserAlias = aliased(database.User)
+
+        cost_query = (
+            select(
+                database.Cost.id.label("id"),
+                database.Cost.name.label("name"),
+                CostCategoryAlias.name.label("icon"),
+                database.Cost.value.label("value"),
+                database.Cost.timestamp.label("timestamp"),
+                func.cast("cost", String).label("operation_type"),
+                CurrencyAlias.name.label("currency_name"),
+                CurrencyAlias.sign.label("currency_sign"),
+                CurrencyAlias.id.label("currency_id"),
+                UserAlias.name.label("user_name"),
+            )
+            .join(CurrencyAlias, database.Cost.currency)
+            .join(CostCategoryAlias, database.Cost.category)
+            .join(UserAlias, database.Cost.user)
+        )
+
+        income_query = (
+            select(
+                database.Income.id.label("id"),
+                database.Income.name.label("name"),
+                func.cast("🤑", String).label("icon"),
+                database.Income.value.label("value"),
+                database.Income.timestamp.label("timestamp"),
+                func.cast("income", String).label("operation_type"),
+                CurrencyAlias.name.label("currency_name"),
+                CurrencyAlias.sign.label("currency_sign"),
+                CurrencyAlias.id.label("currency_id"),
+                UserAlias.name.label("user_name"),
+            )
+            .join(CurrencyAlias, database.Income.currency)
+            .join(UserAlias, database.Income.user)
+        )
+
+        exchange_query = (
+            select(
+                database.Exchange.id.label("id"),
+                func.cast("exchange", String).label("name"),
+                func.cast("💱", String).label("icon"),
+                database.Exchange.to_value.label("value"),
+                database.Exchange.timestamp.label("timestamp"),
+                func.cast("exchange", String).label("operation_type"),
+                CurrencyAlias.name.label("currency_name"),
+                CurrencyAlias.sign.label("currency_sign"),
+                CurrencyAlias.id.label("currency_id"),
+                UserAlias.name.label("user_name"),
+            )
+            .join(CurrencyAlias, database.Exchange.to_currency)
+            .join(UserAlias, database.Exchange.user)
+        )
+
+        final_query = (
+            union_all(cost_query, income_query, exchange_query)
+            .order_by(desc("timestamp"))
+            .order_by(desc("id"))
+            .limit(1)
+        )
+
+        async with self.query.session as session:
+            async with session.begin():
+                result = await session.execute(final_query)
+                row = result.first()
+
+                if row is None:
+                    return None
+                else:
+                    return Transaction(
+                        id=row.id,
+                        name=row.name,
+                        icon=row.icon,
+                        value=row.value,
+                        timestamp=row.timestamp,
+                        operation=row.operation_type,
+                        currency=Currency(
+                            id=row.currency_id,
+                            name=row.currency_name,
+                            sign=row.currency_sign,
+                        ),
+                        user=row.user_name,
+                    )

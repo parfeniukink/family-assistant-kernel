@@ -25,7 +25,7 @@ from ..responses import (
     ErrorResponseMulti,
     ErrorType,
 )
-from .exceptions import BaseError
+from .exceptions import AuthenticationError, BaseError
 
 
 def sentry_error_traceback(error: BaseException):
@@ -131,6 +131,19 @@ def database_error_handler(
     return JSONResponse(
         content=response.model_dump(by_alias=True),
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    )
+
+
+def authentication_error(
+    _: Request | None, error: AuthenticationError
+) -> JSONResponse:
+    response = ErrorResponse(message=str(error))
+    logger.error(response.model_dump(by_alias=True))
+    sentry_error_traceback(error)
+
+    return JSONResponse(
+        response.model_dump(by_alias=True),
+        status_code=status.HTTP_401_UNAUTHORIZED,
     )
 
 

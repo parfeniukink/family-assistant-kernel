@@ -20,10 +20,12 @@ from sqlalchemy import (
     DATE,
     TIMESTAMP,
     Boolean,
+    Float,
     ForeignKey,
     Integer,
     MetaData,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects import postgresql
@@ -142,7 +144,7 @@ class Currency(Base, DefaultColumnsMixin):
     """table includes 'equity and currencies'.
 
     params:
-        ``name`` - 'USD'
+        ``name`` - 'USD' (always a CURRENCY CODE)
         ``sign`` - '$'
         ``equity`` - 10000 which is 100$. in CENTS
     """
@@ -465,3 +467,31 @@ class HTTPRequestLog(Base):
         TIMESTAMP(timezone=True), server_default=func.now(), index=True
     )
     content_length: Mapped[int | None] = mapped_column(default=None)
+
+
+class ExchangeRate(Base, DefaultColumnsMixin):
+    """Table for caching NBU exchange rates.
+
+    Stores daily exchange rates from NBU (National Bank of Ukraine).
+    Rate represents how many UAH per 1 unit of foreign currency.
+
+    params:
+        currency_code: ISO 4217 currency code (e.g., "USD", "EUR")
+        rate: Exchange rate (UAH per 1 unit of currency)
+        exchange_date: Date of the exchange rate
+    """
+
+    __tablename__ = "exchange_rates"
+
+    cc_from: Mapped[str] = mapped_column(String(3))
+    cc_to: Mapped[str] = mapped_column(String(3))
+    rate: Mapped[float] = mapped_column(Float)
+    date: Mapped[date]
+
+    __table_args__ = (
+        UniqueConstraint(
+            "cc_from",
+            "cc_to",
+            "date",
+        ),
+    )

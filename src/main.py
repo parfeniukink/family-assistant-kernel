@@ -100,11 +100,14 @@ if settings.sentry_dsn and settings.debug is False:
 
     logger.success("Sentry initialized")
 
+middlewares.append(
+    (CORSMiddleware, middleware.FASTAPI_CORS_MIDDLEWARE_OPTIONS)
+)
+
 if settings.debug is False:
     middlewares.extend(
         [
             (RequestAnalyticsMiddleware, {}),
-            (CORSMiddleware, middleware.FASTAPI_CORS_MIDDLEWARE_OPTIONS),
             (SecurityHeadersMiddleware, {}),
         ]
     )
