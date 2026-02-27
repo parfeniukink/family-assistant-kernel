@@ -1,5 +1,6 @@
 import contextlib
 import functools
+from datetime import date
 
 from pydantic import Field
 
@@ -69,6 +70,7 @@ class CostShortcut(PublicData):
 
 class CostShortcutApply(PublicData):
     value: float
+    date_override: date | None = None
 
 
 class ReorderPositionsRequestBody(PublicData):

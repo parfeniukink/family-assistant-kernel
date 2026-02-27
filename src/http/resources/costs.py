@@ -130,6 +130,7 @@ async def cost_shortcut_apply(
         user,
         shortcut_id,
         value=domain.transactions.cents_from_raw(body.value) if body else None,
+        date_override=body.date_override if body else None,
     )
 
     asyncio.create_task(op.notify_about_big_cost(cost=item))

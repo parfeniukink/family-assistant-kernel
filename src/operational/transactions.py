@@ -496,7 +496,10 @@ async def delete_cost_shortcut(
 
 
 async def apply_cost_shortcut(
-    user: domain.users.User, shortcut_id: int, value: int | None
+    user: domain.users.User,
+    shortcut_id: int,
+    value: int | None,
+    date_override: date | None = None,
 ) -> database.Cost:
     """try to apply the cost shortcut."""
 
@@ -511,7 +514,7 @@ async def apply_cost_shortcut(
         cost: database.Cost = await add_cost(
             name=shortcut.name,
             value=cast(int, shortcut.value or value),
-            timestamp=date.today(),
+            timestamp=date_override or date.today(),
             currency_id=shortcut.currency_id,
             category_id=shortcut.category_id,
             user_id=user.id,
