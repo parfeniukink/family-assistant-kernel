@@ -59,6 +59,7 @@ def unprocessable_entity_error_handler(
     This error is raised automatically by FastAPI.
     """
 
+    logger.error(error)
     response = ErrorResponseMulti(
         result=[
             ErrorResponse(
@@ -71,8 +72,6 @@ def unprocessable_entity_error_handler(
             for err in error.errors()
         ]
     )
-    logger.debug(error.errors()[0]["type"])
-    logger.error(response.model_dump(by_alias=True))
     sentry_error_traceback(error)
 
     return JSONResponse(
@@ -82,8 +81,8 @@ def unprocessable_entity_error_handler(
 
 
 def value_error_handler(_: Request, error: ValueError) -> JSONResponse:
+    logger.error(error)
     response = ErrorResponse(message=str(error))
-    logger.error(response.model_dump(by_alias=True))
     sentry_error_traceback(error)
 
     return JSONResponse(
@@ -97,8 +96,8 @@ def fastapi_http_exception_handler(
 ) -> JSONResponse:
     """This function is called if the HTTPException was raised."""
 
+    logger.error(error)
     response = ErrorResponse(message=error.detail)
-    logger.error(response.model_dump(by_alias=True))
     sentry_error_traceback(error)
     return JSONResponse(
         content=response.model_dump(by_alias=True),
@@ -110,8 +109,9 @@ def not_implemented_error_handler(
     _: Request, error: NotImplementedError
 ) -> JSONResponse:
     """This function is called if the NotImplementedError was raised."""
+
+    logger.error(error)
     response = ErrorResponse(message=str(error) or "⚠️ Work in progress")
-    logger.error(response.model_dump(by_alias=True))
     sentry_error_traceback(error)
 
     return JSONResponse(
@@ -124,8 +124,9 @@ def database_error_handler(
     _: Request, error: NotImplementedError
 ) -> JSONResponse:
     """This function is called if the NotImplementedError was raised."""
-    response = ErrorResponse(message="Database error occurred")
+
     logger.error(error)
+    response = ErrorResponse(message="Database error occurred")
     sentry_error_traceback(error)
 
     return JSONResponse(
@@ -137,8 +138,9 @@ def database_error_handler(
 def authentication_error(
     _: Request | None, error: AuthenticationError
 ) -> JSONResponse:
+
+    logger.error(error)
     response = ErrorResponse(message=str(error))
-    logger.error(response.model_dump(by_alias=True))
     sentry_error_traceback(error)
 
     return JSONResponse(
@@ -152,8 +154,8 @@ def base_error_handler(_: Request, error: BaseError) -> JSONResponse:
     Each class that inherits the BaseError has a status_code attribute.
     """
 
+    logger.error(error)
     response = ErrorResponse(message=str(error))
-    logger.error(response.model_dump(by_alias=True))
     sentry_error_traceback(error)
 
     return JSONResponse(
@@ -163,8 +165,8 @@ def base_error_handler(_: Request, error: BaseError) -> JSONResponse:
 
 
 def unhandled_error_handler(_: Request, error: Exception) -> JSONResponse:
+    logger.error(error)
     response = ErrorResponse(message=str(error))
-    logger.error(response.model_dump(by_alias=True))
     sentry_error_traceback(error)
 
     return JSONResponse(
@@ -174,15 +176,16 @@ def unhandled_error_handler(_: Request, error: Exception) -> JSONResponse:
 
 
 async def rate_limit_exceeded_handler(
-    request: Request, exc: RateLimitExceeded
+    _: Request, error: RateLimitExceeded
 ) -> JSONResponse:
+    logger.error(error)
     response = ErrorResponse(
         message="Rate limit exceeded. Try again later.",
     )
 
     retry_after = "60"
-    if exc.detail:
-        detail_str = str(exc.detail)
+    if error.detail:
+        detail_str = str(error.detail)
         if "per minute" in detail_str.lower():
             retry_after = "60"
         elif "per hour" in detail_str.lower():

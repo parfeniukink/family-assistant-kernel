@@ -26,11 +26,8 @@ async def authorize(
     """Dependency-injection for FastAPI."""
 
     if creds is None:
-        return errors.authentication_error(  # type: ignore
-            None,
-            errors.AuthenticationError(
-                "Authorization HTTP header is not specified"
-            ),
+        raise errors.AuthenticationError(
+            "Authorization HTTP header is not specified"
         )
 
     token = creds.credentials
@@ -38,91 +35,78 @@ async def authorize(
     try:
         payload = security.decode_token(token)
         if payload.get("type") != "access":
-            return errors.authentication_error(  # type: ignore
-                None, errors.AuthenticationError("Invalid token type")
-            )
+            raise errors.AuthenticationError("Invalid token type")
         user_id = int(payload["sub"])
+    except errors.AuthenticationError:
+        raise
     except jwt.ExpiredSignatureError:
-        return errors.authentication_error(  # type: ignore
-            None, errors.AuthenticationError("Token expired")
-        )
+        raise errors.AuthenticationError("Token expired")
     except (jwt.InvalidTokenError, KeyError, ValueError) as error:
         logger.error(error)
-        return errors.authentication_error(  # type: ignore
-            None, errors.AuthenticationError("Invalid token")
-        )
+        raise errors.AuthenticationError("Invalid token")
     else:
         try:
-            user = await domain.users.UserRepository().user_by_id(user_id)
+            user = await domain.users.UserRepository().user_by_id(
+                user_id
+            )
         except Exception as error:
             logger.error(error)
-            return errors.authentication_error(  # type: ignore
-                None, errors.AuthenticationError("Invlid credentials")
-            )
+            raise errors.AuthenticationError("Invalid credentials")
         else:
             return domain.users.User.from_instance(user)
 
 
-async def get_tokens_pair(username: str, password: str) -> TokensPair:
+async def get_tokens_pair(
+    username: str, password: str
+) -> TokensPair:
     """Authenticate user and return token pair."""
 
     try:
-        user: database.User = await domain.users.UserRepository().user_by_name(
-            username
+        user: database.User = (
+            await domain.users.UserRepository().user_by_name(username)
         )
     except errors.NotFoundError:
-        return errors.authentication_error(  # type: ignore
-            None, errors.AuthenticationError("Invalid credentials")
-        )
-    else:
-        # Verify password
-        if not user.password_hash:
-            return errors.authentication_error(  # type: ignore
-                None, errors.AuthenticationError("Invalid credentials")
-            )
+        raise errors.AuthenticationError("Invalid credentials")
 
-        if not security.verify_password(password, user.password_hash):
-            return errors.authentication_error(  # type: ignore
-                None, errors.AuthenticationError("Invalid credentials")
-            )
+    # Verify password
+    if not user.password_hash:
+        raise errors.AuthenticationError("Invalid credentials")
 
-        # Create tokens
-        access_token = security.create_access_token(user.id)
-        refresh_token = security.create_refresh_token(user.id)
+    if not security.verify_password(password, user.password_hash):
+        raise errors.AuthenticationError("Invalid credentials")
 
-        # TODO: Store refresh token hash in cache
-        # token_hash = security.hash_refresh_token(refresh_token)
+    # Create tokens
+    access_token = security.create_access_token(user.id)
+    refresh_token = security.create_refresh_token(user.id)
 
-        return TokensPair(
-            access_token=access_token,
-            refresh_token=refresh_token,
-        )
+    # TODO: Store refresh token hash in cache
+    # token_hash = security.hash_refresh_token(refresh_token)
+
+    return TokensPair(
+        access_token=access_token,
+        refresh_token=refresh_token,
+    )
 
 
 async def refresh_tokens(refresh_token: str) -> TokensPair:
-    """Returns new TokenPair with fresh access token and same refresh token."""
+    """Returns new TokenPair with fresh access token and same
+    refresh token."""
 
     try:
         # Decode and validate the refresh token
         payload = security.decode_token(refresh_token)
     except jwt.ExpiredSignatureError:
-        return errors.authentication_error(  # type: ignore
-            None, errors.AuthenticationError("Refresh token expired")
-        )
+        raise errors.AuthenticationError("Refresh token expired")
     except (jwt.InvalidTokenError, KeyError, ValueError):
-        return errors.authentication_error(  # type: ignore
-            None, errors.AuthenticationError("Refresh token invalid")
-        )
+        raise errors.AuthenticationError("Refresh token invalid")
     else:
-        if (exp := payload.get("exp")) and ((exp - int(time.time())) < 0):
-            return errors.authentication_error(  # type: ignore
-                None, errors.AuthenticationError("Token expired")
-            )
+        if (exp := payload.get("exp")) and (
+            (exp - int(time.time())) < 0
+        ):
+            raise errors.AuthenticationError("Token expired")
 
         if payload.get("type") != "refresh":
-            return errors.authentication_error(  # type: ignore
-                None, errors.AuthenticationError("Token invalid")
-            )
+            raise errors.AuthenticationError("Token invalid")
         else:
             user_id = int(payload["sub"])
 
@@ -133,4 +117,6 @@ async def refresh_tokens(refresh_token: str) -> TokensPair:
     # Create new access token only
     access_token = security.create_access_token(user_id)
 
-    return TokensPair(access_token=access_token, refresh_token=refresh_token)
+    return TokensPair(
+        access_token=access_token, refresh_token=refresh_token
+    )
