@@ -2,20 +2,22 @@ import asyncio
 
 from fastapi import APIRouter, Body, Depends, status
 
+from src import application as op
 from src import domain
-from src import operational as op
 from src.infrastructure import (
     OffsetPagination,
     Response,
     ResponseMultiPaginated,
     database,
     get_offset_pagination_params,
+    repositories,
 )
 
 from ..contracts import Currency, Income, IncomeCreateBody, IncomeUpdateBody
 
 router = APIRouter(
-    prefix="/transactions/incomes", tags=["Transactions", "Incomes"]
+    prefix="/transactions/incomes",
+    tags=["Transactions", "Incomes"],
 )
 
 
@@ -29,9 +31,11 @@ async def incomes(
 
     tasks = (
         op.get_incomes(
-            user_id=user.id, offset=pagination.context, limit=pagination.limit
+            user_id=user.id,
+            offset=pagination.context,
+            limit=pagination.limit,
         ),
-        domain.transactions.TransactionRepository().count(database.Income),
+        repositories.Income().count(database.Income),
     )
 
     items, total = await asyncio.gather(*tasks)
@@ -73,14 +77,12 @@ async def add_income(
 
 @router.get("/{income_id}", status_code=status.HTTP_200_OK)
 async def get_income(
-    income_id: int, _: domain.users.User = Depends(op.authorize)
+    income_id: int,
+    _: domain.users.User = Depends(op.authorize),
 ) -> Response[Income]:
     """retrieve an income."""
 
-    async with database.transaction():
-        instance = await domain.transactions.TransactionRepository().income(
-            id_=income_id
-        )
+    instance = await repositories.Income().income(id_=income_id)
 
     return Response[Income](result=Income.from_instance(instance))
 

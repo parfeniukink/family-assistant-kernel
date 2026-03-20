@@ -10,7 +10,7 @@ import asyncio
 import sys
 from datetime import date, datetime
 
-from src.operational.analytics import ensure_exchange_rates
+from src.application.analytics import ensure_exchange_rates
 
 
 async def main() -> int:

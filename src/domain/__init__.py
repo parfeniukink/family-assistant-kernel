@@ -1,1 +1,11 @@
-from . import equity, exchange_rates, notifications, transactions, users
+__all__ = (
+    "equity",
+    "jobs",
+    "news",
+    "notifications",
+    "prompts",
+    "transactions",
+    "users",
+)
+
+from . import equity, jobs, news, notifications, prompts, transactions, users

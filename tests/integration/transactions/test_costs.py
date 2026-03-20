@@ -10,8 +10,8 @@ import httpx
 import pytest
 from fastapi import status
 
-from src import domain, http
-from src.infrastructure import database
+from src import http
+from src.infrastructure import database, repositories
 
 
 # ==================================================
@@ -68,9 +68,7 @@ async def test_cost_category_creation(
         "/transactions/costs/categories", json={"name": "Another yet category"}
     )
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.CostCategory
-    )
+    total = await repositories.Cost().count(database.CostCategory)
 
     assert response.status_code == status.HTTP_201_CREATED
     assert total == len(cost_categories) + 1
@@ -89,9 +87,7 @@ async def test_costs_fetch(client: httpx.AsyncClient, cost_factory):
     )
     response2_data = response2.json()
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Cost
-    )
+    total = await repositories.Cost().count(database.Cost)
 
     assert total == len(costs)
     assert response1.status_code == status.HTTP_200_OK
@@ -118,13 +114,9 @@ async def test_cost_add(
         },
     )
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Cost
-    )
+    total = await repositories.Cost().count(database.Cost)
 
-    currency: database.Currency = (
-        await domain.equity.EquityRepository().currency(id_=1)
-    )
+    currency: database.Currency = await repositories.Currency().currency(id_=1)
 
     assert response.status_code == status.HTTP_201_CREATED, response.json()
     assert total == 1
@@ -139,7 +131,7 @@ async def test_cost_update_safe(
 
     cost, *_ = await cost_factory(n=1)
     body = http.CostUpdateBody(
-        name="".join((cost.name, "some salt")),
+        name="updated_cost_name",
         category_id=2,  # `1` by default
         timestamp=cost.timestamp - timedelta(days=3),
     )
@@ -148,13 +140,9 @@ async def test_cost_update_safe(
         json=json.loads(body.json(exclude_unset=True)),
     )
 
-    currency: database.Currency = (
-        await domain.equity.EquityRepository().currency(id_=1)
-    )
+    currency: database.Currency = await repositories.Currency().currency(id_=1)
 
-    updated_instance = await domain.transactions.TransactionRepository().cost(
-        id_=cost.id
-    )
+    updated_instance = await repositories.Cost().cost(id_=cost.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert currency.equity == currencies[0].equity
@@ -172,12 +160,8 @@ async def test_cost_update_only_value_increased(
         f"/transactions/costs/{cost.id}", json={"value": new_value / 100}
     )
 
-    currency: database.Currency = (
-        await domain.equity.EquityRepository().currency(id_=1)
-    )
-    updated_instance = await domain.transactions.TransactionRepository().cost(
-        id_=cost.id
-    )
+    currency: database.Currency = await repositories.Currency().currency(id_=1)
+    updated_instance = await repositories.Cost().cost(id_=cost.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert currency.equity == cost.value - new_value
@@ -195,13 +179,11 @@ async def test_cost_update_only_currency(
     )
 
     src_currency, dst_currency = await asyncio.gather(
-        domain.equity.EquityRepository().currency(id_=cost.currency_id),
-        domain.equity.EquityRepository().currency(id_=new_currency_id),
+        repositories.Currency().currency(id_=cost.currency_id),
+        repositories.Currency().currency(id_=new_currency_id),
     )
 
-    updated_instance = await domain.transactions.TransactionRepository().cost(
-        id_=cost.id
-    )
+    updated_instance = await repositories.Cost().cost(id_=cost.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert src_currency.equity == currencies[0].equity + cost.value
@@ -227,13 +209,11 @@ async def test_cost_update_currency_and_value(
     )
 
     src_currency, dst_currency = await asyncio.gather(
-        domain.equity.EquityRepository().currency(id_=cost.currency_id),
-        domain.equity.EquityRepository().currency(id_=payload["currency_id"]),
+        repositories.Currency().currency(id_=cost.currency_id),
+        repositories.Currency().currency(id_=payload["currency_id"]),
     )
 
-    updated_instance = await domain.transactions.TransactionRepository().cost(
-        id_=cost.id
-    )
+    updated_instance = await repositories.Cost().cost(id_=cost.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert src_currency.equity == cost.value  # increase for an old value
@@ -258,13 +238,9 @@ async def test_cost_delete(
 
     await asyncio.sleep(0.1)
 
-    currency = await domain.equity.EquityRepository().currency(
-        id_=cost.currency_id
-    )
+    currency = await repositories.Currency().currency(id_=cost.currency_id)
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Cost
-    )
+    total = await repositories.Cost().count(database.Cost)
 
     assert total == 0
     assert response.status_code == status.HTTP_204_NO_CONTENT, response.json()
@@ -291,9 +267,7 @@ async def test_cost_category_creation_unprocessable(
         "/transactions/costs/categories", json=payload
     )
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.CostCategory
-    )
+    total = await repositories.Cost().count(database.CostCategory)
 
     assert (
         response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -334,9 +308,7 @@ async def test_cost_category_creation_unprocessable(
 async def test_cost_creation_unprocessable(client: httpx.AsyncClient, payload):
     response = await client.post("/transactions/costs", json=payload)
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Cost
-    )
+    total = await repositories.Cost().count(database.Cost)
 
     assert (
         response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

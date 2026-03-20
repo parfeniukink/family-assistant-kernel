@@ -1,21 +1,13 @@
 """
-this package is about Command & Query Separation. there is no real reason
-to separate commands and queries on the operational layer.
+CQS (Command Query Separation) transaction support.
 
-since, the 'Repository' pattern is used as a high-level data access layer,
-there is only the reason to separate queries from database mutation.
-
-the main reason to have it is 'async' way. the ``Command`` logical component
-requires the transaction, when the ``Query`` allows to request for the
-data concurrently.
-
-IMPORTANT: the CQS is a lowes level to access the data from the database.
+Provides a shared-session transaction() context manager for
+cross-repository writes. Individual repositories manage their
+own sessions via the Repository base class.
 """
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from contextvars import ContextVar
-from typing import Self
 
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
@@ -25,25 +17,26 @@ from src.infrastructure import errors
 
 from .session import session_factoy
 
-CTX_CQS_COMMAND_SESSION: ContextVar[AsyncSession | None] = ContextVar(
-    "cqs command session", default=None
-)
-
 
 @asynccontextmanager
 async def transaction() -> AsyncGenerator[AsyncSession, None]:
-    """This context manager automatically dispatches the error by semantic
-    analysis. Database errors are converted into REST errors.
+    """Shared session for cross-repository writes.
+
+    Usage:
+        async with transaction() as session:
+            repo_a = SomeRepository(session=session)
+            repo_b = OtherRepository(session=session)
+            await repo_a.do_write(...)
+            await repo_b.do_write(...)
+            # auto-commits on context exit
     """
 
     session: AsyncSession = session_factoy()
-    CTX_CQS_COMMAND_SESSION.set(session)
 
     try:
         async with session.begin():
             yield session
     except IntegrityError as error:
-        # Convert database errors into REST Responses
         _error = str(error)
 
         if "duplicate key value violates unique constraint" in _error:
@@ -64,61 +57,5 @@ async def transaction() -> AsyncGenerator[AsyncSession, None]:
     except Exception as error:
         logger.error(error)
         raise errors.DatabaseError(str(error)) from error
-
-
-class Command:
-    """cqs 'Command' non-data descriptor
-
-    usage:
-        ```py
-        async with self.query.session as session:
-            async with session.begin():
-                result: Result = await session.execute(
-                    select(database.Table)
-                )
-                return tuple(result.scalars().all())
-        ```
-    """
-
-    def __get__(self, instance, owner) -> Self:
-        if not (session := CTX_CQS_COMMAND_SESSION.get()):
-            raise ValueError(
-                "Transaction is not set. Use `async with transaction()`"
-            )
-        else:
-            setattr(self, "_session", session)
-            return self
-
-    @property
-    def session(self) -> AsyncSession:
-        try:
-            return getattr(self, "_session")
-        except AttributeError:
-            raise ValueError("There is no _session object for the Command")
-
-
-class Query:
-    def __get__(self, instance, owner) -> Self:
-        return self
-
-    @property
-    @asynccontextmanager
-    async def session(self) -> AsyncGenerator[AsyncSession, None]:
-        """create a new session for each new query
-        to be able to get them concurrently.
-        """
-
-        session = session_factoy()
-
-        try:
-            yield session
-        except AttributeError:
-            raise ValueError("There is no _session object for the Query")
-        except errors.NotFoundError as error:
-            logger.error(error)
-            raise error
-        except Exception as error:
-            logger.error(error)
-            raise errors.DatabaseError(str(error)) from error
-        finally:
-            await session.close()
+    finally:
+        await session.close()

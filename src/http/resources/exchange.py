@@ -2,20 +2,22 @@ import asyncio
 
 from fastapi import APIRouter, Body, Depends, status
 
+from src import application as op
 from src import domain
-from src import operational as op
 from src.infrastructure import (
     OffsetPagination,
     Response,
     ResponseMultiPaginated,
     database,
     get_offset_pagination_params,
+    repositories,
 )
 
 from ..contracts import Exchange, ExchangeCreateBody
 
 router = APIRouter(
-    prefix="/transactions/exchange", tags=["Transactions", "Exchange"]
+    prefix="/transactions/exchange",
+    tags=["Transactions", "Exchange"],
 )
 
 
@@ -29,9 +31,11 @@ async def exchanges(
 
     tasks = (
         op.get_currency_exchanges(
-            user_id=user.id, offset=pagination.context, limit=pagination.limit
+            user_id=user.id,
+            offset=pagination.context,
+            limit=pagination.limit,
         ),
-        domain.transactions.TransactionRepository().count(database.Exchange),
+        repositories.Exchange().count(database.Exchange),
     )
 
     items, total = await asyncio.gather(*tasks)
@@ -55,7 +59,7 @@ async def add_exchange(
     user: domain.users.User = Depends(op.authorize),
     body: ExchangeCreateBody = Body(...),
 ) -> Response[Exchange]:
-    """add exchange. side effect: the equity is updated for 2 currencies."""
+    """add exchange. side effect: equity updated for 2 currencies."""
 
     item: database.Exchange = await op.currency_exchange(
         from_value=body.from_value_in_cents,
@@ -71,13 +75,12 @@ async def add_exchange(
 
 @router.get("/{exchange_id}", status_code=status.HTTP_200_OK)
 async def get_exchange(
-    exchange_id: int, _: domain.users.User = Depends(op.authorize)
+    exchange_id: int,
+    _: domain.users.User = Depends(op.authorize),
 ) -> Response[Exchange]:
     """get exchange."""
 
-    instance = await domain.transactions.TransactionRepository().exchange(
-        id_=exchange_id
-    )
+    instance = await repositories.Exchange().exchange(id_=exchange_id)
 
     return Response[Exchange](result=Exchange.from_instance(instance))
 

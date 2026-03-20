@@ -7,11 +7,12 @@ of all the transactions, saved in the database for the specific dates range.
 
 import functools
 import operator
+from datetime import date
 
 from pydantic import Field, field_validator
 
 from src import domain
-from src.infrastructure import IncomeSource, PublicData
+from src.infrastructure.responses import PublicData
 
 from .currency import Currency
 
@@ -46,7 +47,7 @@ class CostsAnalytics(PublicData):
 class IncomesBySource(PublicData):
     """Represents incomes for specific source."""
 
-    source: IncomeSource = Field(
+    source: domain.transactions.IncomeSource = Field(
         description="The source name", examples=["revenue"]
     )
     total: float = Field(description="The total for the selected source")
@@ -114,6 +115,29 @@ class TransactionBasicAnalytics(PublicData):
                 instance.from_exchanges
             ),
         )
+
+
+class PipelineCostSummary(PublicData):
+    pipeline_name: str
+    total_cost: float
+    total_runs: int
+    percentage: float
+
+    @field_validator("percentage", mode="after")
+    @classmethod
+    def _round_percentage(cls, value: float) -> float:
+        return round(value, 1)
+
+    @field_validator("total_cost", mode="after")
+    @classmethod
+    def _round_cost(cls, value: float) -> float:
+        return round(value, 6)
+
+
+class AiAnalyticsResponse(PublicData):
+    result: list[PipelineCostSummary]
+    start_date: date
+    end_date: date
 
 
 class TransactionAnalyticsResponse(PublicData):

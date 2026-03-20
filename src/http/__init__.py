@@ -30,6 +30,11 @@ from .contracts import (
     Income,
     IncomeCreateBody,
     IncomeUpdateBody,
+    Job,
+    JobCreateBody,
+    JobType,
+    JobUpdateBody,
+    NewsItem,
     Transaction,
     TransactionBasicAnalytics,
     User,
@@ -42,5 +47,7 @@ from .resources.currencies import router as currencies_router
 from .resources.exchange import router as exchange_router
 from .resources.identity import router as users_router
 from .resources.incomes import router as incomes_router
+from .resources.jobs import router as jobs_router
+from .resources.news import router as news_router
 from .resources.notifications import router as notifications_router
 from .resources.transactions import router as transactions_router

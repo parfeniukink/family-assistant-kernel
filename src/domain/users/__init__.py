@@ -9,8 +9,6 @@ as 'configuration' fields.
 __all__ = (
     "User",
     "UserConfiguration",
-    "UserRepository",
 )
 
 from .entities import User, UserConfiguration
-from .repository import UserRepository

@@ -5,7 +5,8 @@ from datetime import date
 from pydantic import Field
 
 from src import domain
-from src.infrastructure import PublicData, database
+from src.infrastructure import database
+from src.infrastructure.responses import PublicData
 
 from ._mixins import _ValueValidationMixin
 from .currency import Currency

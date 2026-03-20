@@ -1,12 +1,20 @@
 from fastapi import APIRouter, Depends, status
 
+from src import application as op
 from src import domain
-from src import operational as op
-from src.infrastructure import ResponseMulti
+from src.infrastructure import Response, ResponseMulti
 
 from ..contracts import Notification
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+@router.get("/count", status_code=status.HTTP_200_OK)
+async def notifications_count(
+    user: domain.users.User = Depends(op.authorize),
+) -> Response[int]:  # type: ignore
+    count = await op.user_notifications_count(user)
+    return Response[int](result=count)  # type: ignore
 
 
 @router.get("", status_code=status.HTTP_200_OK)

@@ -10,7 +10,7 @@ import argparse
 import asyncio
 import sys
 
-from src.infrastructure import database, security
+from src.infrastructure import database, repositories, security
 
 
 async def main() -> int:
@@ -34,13 +34,11 @@ async def main() -> int:
     user = database.User(name=args.username, password_hash=password_hash)
 
     try:
-        async with database.transaction() as session:
-            session.add(user)
-            await session.flush()
-            user_id = user.id
+        repo = repositories.User()
+        await repo.add_user(user)
+        await repo.flush()
 
         print(f"\nUser created successfully!")
-        print(f"ID: {user_id}")
         print(f"Username: {args.username}")
         print(f"Password: hashed with Argon2")
 

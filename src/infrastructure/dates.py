@@ -1,35 +1,33 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 
-def get_first_date_of_current_month() -> date:
-    """base on the current date information get the first date
-    of the current month and convert it to the `date` instance.
-    """
+def today_for_tz(tz: str = "UTC") -> date:
+    """Return today's date in the given IANA timezone."""
 
-    return datetime.strptime(
-        f"{date.today().strftime("%Y-%m")}-01", "%Y-%m-%d"
-    ).date()
+    try:
+        return datetime.now(ZoneInfo(tz)).date()
+    except (KeyError, ValueError):
+        return datetime.now(timezone.utc).date()
 
 
-def get_previous_month_range() -> tuple[date, date]:
-    """base on the current date information get the first and the last dates
-    of the previous month and convert them to the `date` instances.
-    """
+def get_first_date_of_current_month(tz: str = "UTC") -> date:
+    """Get the first date of the current month."""
 
-    today: date = date.today()
+    return today_for_tz(tz).replace(day=1)
 
-    last_day: date = datetime.strptime(
-        f"{today.strftime("%Y-%m")}-01", "%Y-%m-%d"
-    ).date() - timedelta(days=1)
 
-    first_day: date = datetime.strptime(
-        f"{last_day.strftime("%Y-%m")}-01", "%Y-%m-%d"
-    ).date()
+def get_previous_month_range(tz: str = "UTC") -> tuple[date, date]:
+    """Get the first and last dates of the previous month."""
+
+    first_of_current = today_for_tz(tz).replace(day=1)
+    last_day = first_of_current - timedelta(days=1)
+    first_day = last_day.replace(day=1)
 
     return first_day, last_day
 
 
-def first_year_date():
-    """provide CUSTOM year OR return first date in the CURRENT year."""
+def first_year_date(tz: str = "UTC") -> date:
+    """Return the first date of the current year."""
 
-    return date(year=date.today().year, month=1, day=1)
+    return date(year=today_for_tz(tz).year, month=1, day=1)

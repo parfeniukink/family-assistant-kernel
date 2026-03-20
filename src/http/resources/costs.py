@@ -2,8 +2,8 @@ import asyncio
 
 from fastapi import APIRouter, Body, Depends, status
 
+from src import application as op
 from src import domain
-from src import operational as op
 from src.infrastructure import (
     OffsetPagination,
     Response,
@@ -11,6 +11,7 @@ from src.infrastructure import (
     ResponseMultiPaginated,
     database,
     get_offset_pagination_params,
+    repositories,
 )
 
 from ..contracts.shortcuts import (
@@ -45,9 +46,7 @@ async def cost_categories(
     return ResponseMulti[CostCategory](
         result=[
             CostCategory.model_validate(item)
-            async for item in (
-                domain.transactions.TransactionRepository().cost_categories()
-            )
+            async for item in (repositories.Cost().cost_categories())
         ]
     )
 
@@ -59,18 +58,19 @@ async def cost_category_create(
 ) -> Response[CostCategory]:
     """create a cost category."""
 
-    async with database.transaction():
-        item: (
-            database.CostCategory
-        ) = await domain.transactions.TransactionRepository().add_cost_category(  # noqa: E501
-            candidate=database.CostCategory(name=schema.name)
-        )
+    repo = repositories.Cost()
+    item: database.CostCategory = await repo.add_cost_category(
+        candidate=database.CostCategory(name=schema.name)
+    )
+    await repo.flush()
 
     return Response[CostCategory](result=CostCategory.model_validate(item))
 
 
 @router.post(
-    "/shortcuts", status_code=status.HTTP_201_CREATED, tags=["Shortcuts"]
+    "/shortcuts",
+    status_code=status.HTTP_201_CREATED,
+    tags=["Shortcuts"],
 )
 async def cost_shortcut_create(
     user: domain.users.User = Depends(op.authorize),
@@ -107,7 +107,8 @@ async def cost_shortcuts(
     tags=["Shortcuts"],
 )
 async def cost_shortcut_delete(
-    shortcut_id: int, user: domain.users.User = Depends(op.authorize)
+    shortcut_id: int,
+    user: domain.users.User = Depends(op.authorize),
 ) -> None:
     """delete existing cost shortcut."""
 
@@ -129,7 +130,9 @@ async def cost_shortcut_apply(
     item: database.Cost = await op.apply_cost_shortcut(
         user,
         shortcut_id,
-        value=domain.transactions.cents_from_raw(body.value) if body else None,
+        value=(
+            domain.transactions.cents_from_raw(body.value) if body else None
+        ),
         date_override=body.date_override if body else None,
     )
 
@@ -139,18 +142,22 @@ async def cost_shortcut_apply(
     return Response[Cost](result=Cost.from_instance(item))
 
 
-@router.put("/shortcuts/positions", status_code=status.HTTP_204_NO_CONTENT)
+@router.put(
+    "/shortcuts/positions",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def update_cost_shortcuts(
     items: list[ReorderPositionsRequestBody] = Body(...),
     user: domain.users.User = Depends(op.authorize),
 ) -> None:
     """Bulk update cost shortcuts by id"""
 
-    async with database.transaction():
-        await domain.transactions.TransactionRepository().cost_shortcut_update_positions(  # noqa: E501
-            user_id=user.id,
-            values=[item.model_dump() for item in items],
-        )
+    repo = repositories.Cost()
+    await repo.cost_shortcut_update_positions(
+        user_id=user.id,
+        values=[item.model_dump() for item in items],
+    )
+    await repo.flush()
 
 
 # ===========================================================
@@ -166,9 +173,11 @@ async def costs(
 
     tasks = (
         op.get_costs(
-            user_id=user.id, offset=pagination.context, limit=pagination.limit
+            user_id=user.id,
+            offset=pagination.context,
+            limit=pagination.limit,
         ),
-        domain.transactions.TransactionRepository().count(database.Cost),
+        repositories.Cost().count(database.Cost),
     )
 
     items, total = await asyncio.gather(*tasks)
@@ -218,10 +227,7 @@ async def get_cost(
 ) -> Response[Cost]:
     """retrieve a cost."""
 
-    async with database.transaction():
-        item: database.Cost = (
-            await domain.transactions.TransactionRepository().cost(id_=cost_id)
-        )
+    item: database.Cost = await repositories.Cost().cost(id_=cost_id)
 
     return Response[Cost](result=Cost.from_instance(item))
 

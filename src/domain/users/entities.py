@@ -1,8 +1,6 @@
-import functools
-
+from src.domain.entities import InternalData
 from src.domain.equity import Currency
 from src.domain.transactions import CostCategory
-from src.infrastructure import InternalData, database
 
 
 class UserConfiguration(InternalData):
@@ -19,6 +17,13 @@ class UserConfiguration(InternalData):
 
     monobank_api_key: str | None = None
 
+    # news preferences
+    news_filter_prompt: str | None = None
+    news_preference_profile: str | None = None
+    gc_retention_days: int = 3
+    analyze_preferences: bool = True
+    timezone: str = "UTC"
+
 
 class User(InternalData):
     """Extended user data object with configuration details."""
@@ -26,36 +31,3 @@ class User(InternalData):
     id: int
     name: str
     configuration: UserConfiguration
-
-    @functools.singledispatchmethod
-    @classmethod
-    def from_instance(cls, instance) -> "User":
-        raise NotImplementedError(
-            f"Can not get {cls.__name__} from {type(instance)} type"
-        )
-
-    @from_instance.register
-    @classmethod
-    def _(cls, instance: database.User):
-        return cls(
-            id=instance.id,
-            name=instance.name,
-            configuration=UserConfiguration(
-                show_equity=instance.show_equity,
-                cost_snippets=instance.cost_snippets,
-                income_snippets=instance.income_snippets,
-                default_currency=(
-                    Currency.from_instance(instance.default_currency)
-                    if instance.default_currency
-                    else None
-                ),
-                default_cost_category=(
-                    CostCategory.model_validate(instance.default_cost_category)
-                    if instance.default_cost_category
-                    else None
-                ),
-                last_notification=instance.last_notification,
-                notify_cost_threshold=instance.notify_cost_threshold,
-                monobank_api_key=instance.monobank_api_key,
-            ),
-        )

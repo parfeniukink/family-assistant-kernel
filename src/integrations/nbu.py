@@ -44,7 +44,7 @@ import httpx
 from loguru import logger
 from pydantic import field_validator
 
-from src.infrastructure import PublicData
+from .types import ExternalData
 
 BASE_URL: Final = (
     "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange"
@@ -53,7 +53,7 @@ BASE_URL: Final = (
 
 # TODO: Take the structure from the domain layer
 #       and return to the Application layer
-class NBURate(PublicData):
+class NBURate(ExternalData):
     """Represents a single exchange rate from NBU API."""
 
     cc: str

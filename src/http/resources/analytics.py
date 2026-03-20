@@ -1,14 +1,16 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
+from src import application as op
 from src import domain
-from src import operational as op
-from src.infrastructure import ResponseMulti
+from src.infrastructure import ResponseMulti, repositories
 
 from ..contracts import (
+    AiAnalyticsResponse,
     Equity,
+    PipelineCostSummary,
     TransactionAnalyticsResponse,
     TransactionBasicAnalytics,
 )
@@ -25,7 +27,7 @@ async def equity(
     return ResponseMulti[Equity](
         result=[
             Equity.from_instance(item)
-            for item in await domain.equity.EquityRepository().currencies()
+            for item in await repositories.Currency().currencies()
         ]
     )
 
@@ -86,4 +88,49 @@ async def transaction_analytics_basic(
             for instance in result.per_currency
         ],
         total_ratio=result.total_ratio,
+    )
+
+
+@router.get("/ai")
+async def ai_analytics(
+    start_date: Annotated[
+        date | None,
+        Query(alias="startDate"),
+    ] = None,
+    end_date: Annotated[
+        date | None,
+        Query(alias="endDate"),
+    ] = None,
+    _: domain.users.User = Depends(op.authorize),
+) -> AiAnalyticsResponse:
+    """Per-pipeline AI cost summary for chart rendering."""
+
+    today = date.today()
+    resolved_end = end_date or today
+    resolved_start = start_date or (today - timedelta(days=30))
+
+    if resolved_start > resolved_end:
+        raise ValueError("startDate must not be after endDate")
+
+    repo = repositories.AnalyticsAI()
+    rows = await repo.cost_per_pipeline(resolved_start, resolved_end)
+
+    grand_total = sum(r.total_cost for r in rows)
+
+    return AiAnalyticsResponse(
+        result=[
+            PipelineCostSummary(
+                pipeline_name=r.pipeline_name,
+                total_cost=r.total_cost,
+                total_runs=r.total_runs,
+                percentage=(
+                    (r.total_cost / grand_total * 100)
+                    if grand_total > 0
+                    else 0.0
+                ),
+            )
+            for r in rows
+        ],
+        start_date=resolved_start,
+        end_date=resolved_end,
     )

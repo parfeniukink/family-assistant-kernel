@@ -1,13 +1,16 @@
 __all__ = (
+    "AnalyticsAI",
     "Base",
     "Cost",
     "CostCategory",
     "CostShortcut",
     "Currency",
+    "DataAccessLayer",
     "Exchange",
     "ExchangeRate",
     "Income",
-    "Repository",
+    "Job",
+    "NewsItem",
     "HTTPRequestLog",
     "Table",
     "User",
@@ -16,8 +19,9 @@ __all__ = (
 
 
 from .cqs import transaction
-from .repository import Repository
+from .dal import DataAccessLayer
 from .tables import (
+    AnalyticsAI,
     Base,
     Cost,
     CostCategory,
@@ -27,6 +31,8 @@ from .tables import (
     ExchangeRate,
     HTTPRequestLog,
     Income,
+    Job,
+    NewsItem,
     Table,
     User,
 )

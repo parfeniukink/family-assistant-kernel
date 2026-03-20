@@ -10,7 +10,7 @@ import pytest
 from fastapi import status
 
 from src import domain, http
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 
 
 # ==================================================
@@ -46,9 +46,7 @@ async def test_incomes_fetch(client: httpx.AsyncClient, income_factory):
     )
     response2_data = response2.json()
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Income
-    )
+    total = await repositories.Income().count(database.Income)
 
     assert total == len(incomes)
 
@@ -74,13 +72,9 @@ async def test_income_add(client: httpx.AsyncClient, currencies):
         },
     )
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Income
-    )
+    total = await repositories.Income().count(database.Income)
 
-    currency: database.Currency = (
-        await domain.equity.EquityRepository().currency(id_=1)
-    )
+    currency: database.Currency = await repositories.Currency().currency(id_=1)
 
     assert response.status_code == status.HTTP_201_CREATED, response.json()
     assert total == 1
@@ -103,13 +97,9 @@ async def test_income_update_safe(
         f"/transactions/incomes/{income.id}", json=body.json_body()
     )
 
-    currency: database.Currency = (
-        await domain.equity.EquityRepository().currency(id_=1)
-    )
+    currency: database.Currency = await repositories.Currency().currency(id_=1)
 
-    updated_instance = (
-        await domain.transactions.TransactionRepository().income(id_=income.id)
-    )
+    updated_instance = await repositories.Income().income(id_=income.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert currency.equity == currencies[0].equity
@@ -127,12 +117,8 @@ async def test_income_update_only_value_increased(
         f"/transactions/incomes/{income.id}", json={"value": new_value}
     )
 
-    currency: database.Currency = (
-        await domain.equity.EquityRepository().currency(id_=1)
-    )
-    updated_instance = (
-        await domain.transactions.TransactionRepository().income(id_=income.id)
-    )
+    currency: database.Currency = await repositories.Currency().currency(id_=1)
+    updated_instance = await repositories.Income().income(id_=income.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert currency.equity == currencies[0].equity + 10000
@@ -151,13 +137,11 @@ async def test_income_update_only_currency(
     )
 
     src_currency, dst_currency = await asyncio.gather(
-        domain.equity.EquityRepository().currency(id_=income.currency_id),
-        domain.equity.EquityRepository().currency(id_=new_currency_id),
+        repositories.Currency().currency(id_=income.currency_id),
+        repositories.Currency().currency(id_=new_currency_id),
     )
 
-    updated_instance = (
-        await domain.transactions.TransactionRepository().income(id_=income.id)
-    )
+    updated_instance = await repositories.Income().income(id_=income.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert src_currency.equity == currencies[0].equity - income.value
@@ -179,13 +163,11 @@ async def test_income_update_currency_and_value(
     )
 
     src_currency, dst_currency = await asyncio.gather(
-        domain.equity.EquityRepository().currency(id_=income.currency_id),
-        domain.equity.EquityRepository().currency(id_=payload["currency_id"]),
+        repositories.Currency().currency(id_=income.currency_id),
+        repositories.Currency().currency(id_=payload["currency_id"]),
     )
 
-    updated_instance = (
-        await domain.transactions.TransactionRepository().income(id_=income.id)
-    )
+    updated_instance = await repositories.Income().income(id_=income.id)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert src_currency.equity == currencies[0].equity - income.value
@@ -211,9 +193,7 @@ async def test_income_add_unprocessable(
 ):
     response = await client.post("/transactions/incomes", json=payload)
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Income
-    )
+    total = await repositories.Income().count(database.Income)
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert total == 0

@@ -6,7 +6,7 @@ import pytest
 from fastapi import status
 
 from src import domain
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 from src.integrations.nbu import BASE_URL
 from tests.integration.conftest import (
     CostCandidateFactory,
@@ -140,24 +140,28 @@ async def test_basic_analytics_fetch(
             timestamp=yesterday,
         ),
     )
-    async with database.transaction() as session:
-        cost_create_tasks = (
-            domain.transactions.TransactionRepository().add_cost(candidate)
-            for candidate in cost_candidates
-        )
-        income_create_tasks = (
-            domain.transactions.TransactionRepository().add_income(candidate)
-            for candidate in income_candidates
-        )
-        exchange_create_tasks = (
-            domain.transactions.TransactionRepository().add_exchange(candidate)
-            for candidate in exchange_candidates
-        )
+    cost_repo = repositories.Cost()
+    income_repo = repositories.Income()
+    exchange_repo = repositories.Exchange()
+    cost_create_tasks = (
+        cost_repo.add_cost(candidate) for candidate in cost_candidates
+    )
+    income_create_tasks = (
+        income_repo.add_income(candidate) for candidate in income_candidates
+    )
+    exchange_create_tasks = (
+        exchange_repo.add_exchange(candidate)
+        for candidate in exchange_candidates
+    )
 
-        await asyncio.gather(
-            *cost_create_tasks, *income_create_tasks, *exchange_create_tasks
-        )
-        await session.flush()
+    await asyncio.gather(
+        *cost_create_tasks,
+        *income_create_tasks,
+        *exchange_create_tasks,
+    )
+    await cost_repo.flush()
+    await income_repo.flush()
+    await exchange_repo.flush()
 
     # Mock NBU exchange rate API responses
     nbu_usd_rate = 42.0

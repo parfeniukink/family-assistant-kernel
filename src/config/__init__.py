@@ -96,6 +96,11 @@ class AuthSettings(BaseModel):
     refresh_token_expire_days: int = 7
 
 
+class OpenAISettings(BaseModel):
+    api_key: str = ""
+    default_model: str = "gpt-4.1-mini"
+
+
 class RateLimitSettings(BaseModel):
     login_per_minute: int = 5
     login_per_hour: int = 20
@@ -110,15 +115,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
     debug: bool = False
+    timezone: str = "UTC"
     logging: LoggingSettings = LoggingSettings()
     cors: CORSSettings = CORSSettings()
     database: DatabaseSettings = DatabaseSettings()
     cache: CacheSettings = CacheSettings()
 
+    openai: OpenAISettings = OpenAISettings()
     monobank: MonobankSettings = MonobankSettings()
     auth: AuthSettings = AuthSettings()
     rate_limit: RateLimitSettings = RateLimitSettings()
-
     pytest_logging: str = "off"
 
     # INTEGRATIONS
