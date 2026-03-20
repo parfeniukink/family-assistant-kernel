@@ -1,9 +1,10 @@
 import functools
+from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator
 
 from src import domain
-from src.infrastructure import PublicData
+from src.infrastructure.responses import PublicData
 
 from .currency import Currency
 from .transactions import CostCategory
@@ -72,6 +73,26 @@ class UserConfiguration(PublicData):
             "You can only see that it is available to use."
         ),
     )
+    news_filter_prompt: str | None = Field(
+        default=None,
+        description="LLM prompt for filtering news articles",
+    )
+    news_preference_profile: str | None = Field(
+        default=None,
+        description="AI-generated user preference profile for news",
+    )
+    gc_retention_days: int = Field(
+        default=3,
+        description="Days to retain news articles before GC",
+    )
+    analyze_preferences: bool = Field(
+        default=True,
+        description="Whether AI should analyze user preferences",
+    )
+    timezone: str = Field(
+        default="UTC",
+        description="IANA timezone for the user",
+    )
 
     @functools.singledispatchmethod
     @classmethod
@@ -131,6 +152,36 @@ class UserConfigurationPartialUpdateRequestBody(PublicData):
         default=None,
         description="Monobank API Key. https://api.monobank.ua/index.html",
     )
+    news_filter_prompt: str | None = Field(
+        default=None,
+        description="LLM prompt for filtering news articles",
+    )
+    news_preference_profile: str | None = Field(
+        default=None,
+        description="AI-generated user preference profile for news",
+    )
+    gc_retention_days: int | None = Field(
+        default=None,
+        description="Days to retain news articles before GC",
+    )
+    analyze_preferences: bool | None = Field(
+        default=None,
+        description="Whether AI should analyze user preferences",
+    )
+    timezone: str | None = Field(
+        default=None,
+        description="IANA timezone (e.g. 'Europe/Kyiv')",
+    )
+
+    @field_validator("timezone", mode="after")
+    @classmethod
+    def validate_timezone(cls, value: str | None) -> str | None:
+        if value is not None:
+            try:
+                ZoneInfo(value)
+            except (KeyError, ValueError):
+                raise ValueError(f"Invalid timezone: {value}")
+        return value
 
     @field_validator("notify_cost_threshold", mode="after")
     @classmethod

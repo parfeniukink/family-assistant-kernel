@@ -1,4 +1,4 @@
-from typing import Self
+from typing import Any, Self
 
 from src.infrastructure import Cache as MemcachedCache
 from src.infrastructure import errors
@@ -19,7 +19,7 @@ class Cache(MemcachedCache):
     this class just mockes the inherited class
     """
 
-    _data: dict[str, dict] = {}
+    _data: dict[str, Any] = {}
 
     def __init__(self) -> None:
         pass
@@ -30,11 +30,17 @@ class Cache(MemcachedCache):
     async def __aexit__(self, *args, **kwargs) -> None:
         pass
 
-    async def set(self, namespace: str, key: str, value: dict) -> bool | None:
+    async def set(
+        self,
+        namespace: str,
+        key: str,
+        value: dict | list,
+        exptime: int = 0,
+    ) -> bool | None:
         Cache._data[f"{namespace}:{key}"] = value
         return True
 
-    async def get(self, namespace: str, key: str) -> dict:
+    async def get(self, namespace: str, key: str) -> Any:
         if (result := Cache._data.get(f"{namespace}:{key}")) is None:
             raise errors.NotFoundError
         else:

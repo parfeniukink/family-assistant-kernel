@@ -8,8 +8,7 @@ import httpx
 import pytest
 from fastapi import status
 
-from src import domain
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 
 
 # ==================================================
@@ -54,9 +53,7 @@ async def test_exchange_fetch(client: httpx.AsyncClient, exchange_factory):
     )
     response2_data = response2.json()
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Exchange
-    )
+    total = await repositories.Exchange().count(database.Exchange)
 
     assert total == len(items)
 
@@ -82,13 +79,11 @@ async def test_exchange_add(client: httpx.AsyncClient, currencies):
         },
     )
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Exchange
-    )
+    total = await repositories.Exchange().count(database.Exchange)
 
     tasks = (
-        domain.equity.EquityRepository().currency(id_=1),
-        domain.equity.EquityRepository().currency(id_=2),
+        repositories.Currency().currency(id_=1),
+        repositories.Currency().currency(id_=2),
     )
 
     from_currency, to_currency = await asyncio.gather(*tasks)
@@ -107,12 +102,10 @@ async def test_exchange_delete(
     response = await client.delete(f"/transactions/exchange/{item.id}")
 
     currency_from, currency_to = await asyncio.gather(
-        domain.equity.EquityRepository().currency(id_=1),
-        domain.equity.EquityRepository().currency(id_=2),
+        repositories.Currency().currency(id_=1),
+        repositories.Currency().currency(id_=2),
     )
-    total = await domain.transactions.TransactionRepository().count(
-        database.Exchange
-    )
+    total = await repositories.Exchange().count(database.Exchange)
 
     assert total == 0
     assert response.status_code == status.HTTP_204_NO_CONTENT, response.json()
@@ -138,9 +131,7 @@ async def test_exchange_add_unprocessable(
 ):
     response = await client.post("/transactions/exchange", json=payload)
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.Exchange
-    )
+    total = await repositories.Exchange().count(database.Exchange)
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert total == 0

@@ -1,11 +1,13 @@
 import contextlib
 import functools
 from datetime import date
+from typing import Self
 
 from pydantic import Field, field_validator, model_validator
 
 from src import domain
-from src.infrastructure import IncomeSource, PublicData, database
+from src.infrastructure import database
+from src.infrastructure.responses import PublicData
 
 from ._mixins import _TimestampValidationMixin, _ValueValidationMixin
 from .currency import Currency
@@ -168,7 +170,7 @@ class IncomeCreateBody(
 
     name: str = Field(description="The name of the income")
     value: float = Field(examples=[12.2, 650])
-    source: IncomeSource = Field(
+    source: domain.transactions.IncomeSource = Field(
         default="revenue", description="Available 'source' for the income."
     )
     timestamp: date = Field(
@@ -194,7 +196,7 @@ class IncomeUpdateBody(
         description="The name of the income",
     )
     value: float | None = Field(default=None, examples=[12.2, 650])
-    source: IncomeSource | None = Field(
+    source: domain.transactions.IncomeSource | None = Field(
         default=None,
         description="The income source",
     )
@@ -225,7 +227,7 @@ class Income(PublicData):
     id: int = Field(description="Unique identifier in the system")
     name: str = Field(description="The name of the income")
     value: float = Field(examples=[12.2, 650])
-    source: IncomeSource = Field(
+    source: domain.transactions.IncomeSource = Field(
         description="Available 'source' for the income."
     )
     timestamp: date = Field(description=("The date of a transaction"))
@@ -273,7 +275,7 @@ class ExchangeCreateBody(PublicData, _TimestampValidationMixin):
     )
 
     @model_validator(mode="after")
-    def validate_different_currencies(self):
+    def validate_different_currencies(self) -> Self:
         if self.from_currency_id == self.to_currency_id:
             raise ValueError("Currencies must be different")
         else:

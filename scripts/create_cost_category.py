@@ -10,7 +10,7 @@ import argparse
 import asyncio
 import sys
 
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 
 
 async def main() -> int:
@@ -31,14 +31,12 @@ async def main() -> int:
     created_categories = []
 
     try:
-        async with database.transaction() as session:
-            for category_name in args.name:
-                category = database.CostCategory(name=category_name)
-                session.add(category)
-                await session.flush()
-                created_categories.append(
-                    {"id": category.id, "name": category_name}
-                )
+        repo = repositories.Cost()
+        for category_name in args.name:
+            category = database.CostCategory(name=category_name)
+            await repo.add_cost_category(category)
+            created_categories.append(category_name)
+        await repo.flush()
 
         print(
             f"\n{len(created_categories)} "
@@ -46,8 +44,8 @@ async def main() -> int:
             f"created successfully!"
         )
         print("\nCreated categories:")
-        for cat in created_categories:
-            print(f"\n  ID {cat['id']}: {cat['name']}")
+        for name in created_categories:
+            print(f"\n  {name}")
 
     except Exception as e:
         print(f"Error creating cost categories: {e}", file=sys.stderr)

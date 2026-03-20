@@ -3,8 +3,10 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
+from src.domain.entities import InternalData
 from src.domain.equity import Currency
-from src.infrastructure import IncomeSource, InternalData
+
+from .income import IncomeSource
 
 # represents the available list of query strings that client
 # can specify instead of dates to get the basic analytics.

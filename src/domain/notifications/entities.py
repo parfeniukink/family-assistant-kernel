@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from src.infrastructure.entities import InternalData
+from src.domain.entities import InternalData
 
 
 class Notification(InternalData):
@@ -21,4 +21,3 @@ class Notifications(InternalData):
 
     big_costs: list[Notification] = Field(default_factory=list)
     incomes: list[Notification] = Field(default_factory=list)
-    worker: list[Notification] = Field(default_factory=list)

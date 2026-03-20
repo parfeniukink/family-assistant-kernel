@@ -29,6 +29,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -37,7 +38,7 @@ from sqlalchemy.orm import (
     validates,
 )
 
-from src.infrastructure.types import IncomeSource
+from src import domain
 
 
 class Base(DeclarativeBase):
@@ -116,6 +117,23 @@ class User(Base, DefaultColumnsMixin):
     # integrations
     monobank_api_key: Mapped[str | None] = mapped_column(
         default=None, server_default=None
+    )
+
+    # news preferences
+    news_filter_prompt: Mapped[str | None] = mapped_column(
+        String(5000), default=None, server_default=None
+    )
+    news_preference_profile: Mapped[str | None] = mapped_column(
+        String(10000), default=None, server_default=None
+    )
+    gc_retention_days: Mapped[int] = mapped_column(
+        Integer, default=3, server_default="3"
+    )
+    analyze_preferences: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="t"
+    )
+    timezone: Mapped[str] = mapped_column(
+        String(50), default="UTC", server_default="UTC"
     )
 
     # joined tables
@@ -271,7 +289,9 @@ class Income(Base, DefaultColumnsMixin):
         default=functools.partial(date.today),
         server_default=func.current_date(),
     )
-    source: Mapped[IncomeSource] = mapped_column(index=True)
+    source: Mapped[domain.transactions.IncomeSource] = mapped_column(
+        index=True
+    )
 
     @validates("value")
     def validate_positive_value(self, _, address) -> int:
@@ -487,6 +507,9 @@ class ExchangeRate(Base, DefaultColumnsMixin):
     cc_to: Mapped[str] = mapped_column(String(3))
     rate: Mapped[float] = mapped_column(Float)
     date: Mapped[date]
+    source: Mapped[str | None] = mapped_column(
+        String(20), default="nbu", server_default="nbu"
+    )
 
     __table_args__ = (
         UniqueConstraint(
@@ -494,4 +517,128 @@ class ExchangeRate(Base, DefaultColumnsMixin):
             "cc_to",
             "date",
         ),
+    )
+
+
+class NewsItem(Base, DefaultColumnsMixin):
+    """Global news items populated by background worker.
+
+    params:
+        ``title`` - news headline
+        ``description`` - news body/summary
+        ``sources`` - list of source URLs
+        ``created_at`` - timestamp with timezone
+    """
+
+    __tablename__ = "news_items"
+
+    title: Mapped[str] = mapped_column(String(500))
+    sources: Mapped[list[str] | None] = mapped_column(
+        postgresql.ARRAY(String, dimensions=1), default=None
+    )
+    article_urls: Mapped[list[str] | None] = mapped_column(
+        postgresql.ARRAY(String(2048), dimensions=1), default=None
+    )
+    bookmarked: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="f"
+    )
+    reaction: Mapped[str | None] = mapped_column(
+        String(10), default=None, index=True
+    )
+
+    # Inferences
+    description: Mapped[str] = mapped_column(String(5000))
+    detailed_description: Mapped[str | None] = mapped_column(
+        String(5000), default=None
+    )
+    extended_description: Mapped[str | None] = mapped_column(
+        String(5000), default=None
+    )
+    human_feedback: Mapped[str | None] = mapped_column(
+        String(5000), default=None
+    )
+
+    # Preference tracking
+    needs_ai_analysis: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="f", index=True
+    )
+
+    # Utility
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), index=True
+    )
+
+
+class Job(Base, DefaultColumnsMixin):
+    """Scheduled background job configuration.
+
+    params:
+        ``name`` - user-friendly label
+        ``job_type`` - registered job type identifier
+        ``_metadata`` - JSONB blob with ``source`` key for
+            dispatch and source-specific parameters
+        ``is_active`` - whether the job is enabled
+        ``last_run_at`` - last execution timestamp
+        ``next_run_at`` - next scheduled execution
+        ``last_status`` - running / success / error
+        ``last_error`` - last error message
+        ``run_count`` - total executions
+        ``created_at`` - creation timestamp
+        ``user_id`` - owner
+    """
+
+    __tablename__ = "jobs"
+
+    name: Mapped[str]
+    job_type: Mapped[str] = mapped_column(String(100))
+    _metadata: Mapped[dict] = mapped_column(
+        "_metadata", JSONB, default=dict, server_default="{}"
+    )
+    interval_minutes: Mapped[int | None] = mapped_column(
+        Integer, default=None, nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="t"
+    )
+    last_run_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), default=None
+    )
+    next_run_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now()
+    )
+    last_status: Mapped[str | None] = mapped_column(String(20), default=None)
+    last_error: Mapped[str | None] = mapped_column(String(1000), default=None)
+    run_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now()
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE")
+    )
+    user: Mapped[User] = relationship(
+        viewonly=True, lazy="select", foreign_keys=[user_id]
+    )
+
+
+class AnalyticsAI(Base):
+    """Append-only AI pipeline run analytics."""
+
+    __tablename__ = "analytics_ai"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pipeline_name: Mapped[str] = mapped_column(String(255))
+    trace_id: Mapped[str] = mapped_column(String(12))
+    agent_stats: Mapped[dict] = mapped_column(JSONB)
+    total_calls: Mapped[int]
+    total_errors: Mapped[int]
+    wall_time_s: Mapped[float] = mapped_column(Float)
+    estimated_cost: Mapped[float] = mapped_column(Float)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        index=True,
     )

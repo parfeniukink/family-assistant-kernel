@@ -1,6 +1,4 @@
-import functools
-
-from src.infrastructure import InternalData, database
+from src.domain.entities import InternalData
 
 
 class Currency(InternalData):
@@ -18,18 +16,6 @@ class Currency(InternalData):
     id: int
     name: str
     sign: str
-
-    @functools.singledispatchmethod
-    @classmethod
-    def from_instance(cls, instance) -> "Currency":
-        raise NotImplementedError(
-            f"Can not get {cls.__name__} from {type(instance)} type"
-        )
-
-    @from_instance.register
-    @classmethod
-    def _(cls, instance: database.Currency):
-        return cls.model_validate(instance)
 
 
 class Equity(Currency):

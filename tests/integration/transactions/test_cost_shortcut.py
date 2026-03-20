@@ -6,8 +6,7 @@ import httpx
 import pytest
 from fastapi import status
 
-from src import domain
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 
 
 # ==================================================
@@ -62,9 +61,7 @@ async def test_cost_shortcut_create(
     client: httpx.AsyncClient, cost_categories, currencies, payload
 ):
     response = await client.post("/transactions/costs/shortcuts", json=payload)
-    total = await domain.transactions.TransactionRepository().count(
-        database.CostShortcut
-    )
+    total = await repositories.Cost().count(database.CostShortcut)
     raw_response: dict = response.json()["result"]
 
     assert total == 1
@@ -87,9 +84,7 @@ async def test_cost_shortcut_create_multiple(
 
     await client.post("/transactions/costs/shortcuts", json=payload)
     response = await client.post("/transactions/costs/shortcuts", json=payload)
-    total = await domain.transactions.TransactionRepository().count(
-        database.CostShortcut
-    )
+    total = await repositories.Cost().count(database.CostShortcut)
     raw_response: dict = response.json()["result"]
 
     assert total == 2, response.json()
@@ -103,9 +98,7 @@ async def test_cost_shortcuts_fetch(
     items = await cost_shortcut_factory(n=5)
     response = await client.get("/transactions/costs/shortcuts")
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.CostShortcut
-    )
+    total = await repositories.Cost().count(database.CostShortcut)
 
     assert response.status_code == status.HTTP_200_OK, response.json()
     assert len(response.json()["result"]) == len(items) == total
@@ -121,9 +114,7 @@ async def test_cost_shortcuts_delete(
         f"/transactions/costs/shortcuts/{items[0].id}"
     )
 
-    total = await domain.transactions.TransactionRepository().count(
-        database.CostShortcut
-    )
+    total = await repositories.Cost().count(database.CostShortcut)
 
     assert response.status_code == status.HTTP_204_NO_CONTENT, response.json()
     assert total == len(items) - 1
@@ -134,7 +125,7 @@ async def test_cost_shortcuts_apply(
     client: httpx.AsyncClient, cost_shortcut_factory, currencies
 ):
     item, *_ = await cost_shortcut_factory(n=1, value=10000)  # 100.00
-    repository = domain.transactions.TransactionRepository()
+    repository = repositories.Cost()
 
     response = await client.post(f"/transactions/costs/shortcuts/{item.id}")
     raw_response = response.json()["result"]
@@ -144,8 +135,8 @@ async def test_cost_shortcuts_apply(
         id_=raw_response["id"]
     )
 
-    currency: database.Currency = (
-        await domain.equity.EquityRepository().currency(id_=item.currency_id)
+    currency: database.Currency = await repositories.Currency().currency(
+        id_=item.currency_id
     )
 
     assert response.status_code == status.HTTP_201_CREATED, raw_response
@@ -163,7 +154,7 @@ async def test_cost_shortcuts_apply_no_value(
     """
 
     item, *_ = await cost_shortcut_factory(n=1)  # no value is specified
-    repository = domain.transactions.TransactionRepository()
+    repository = repositories.Cost()
 
     response = await client.post(f"/transactions/costs/shortcuts/{item.id}")
 

@@ -29,7 +29,8 @@ class PublicData(BaseModel):
             )
         except json.JSONDecodeError as error:
             raise ValueError(
-                f"{self.__class__.__name__} instance in not JSON serializable"
+                f"{self.__class__.__name__} instance in not"
+                " JSON serializable"
             ) from error
 
 

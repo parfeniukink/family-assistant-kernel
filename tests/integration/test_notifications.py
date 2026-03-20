@@ -8,8 +8,7 @@ import httpx
 import pytest
 from fastapi import status
 
-from src.domain.transactions import TransactionRepository
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 from tests.mock import Cache
 
 
@@ -100,22 +99,23 @@ async def test_user_notified_about_big_cost_after_update(
         4. check notification object in the cache
     """
 
-    async with database.transaction():
-        _, cost = await asyncio.gather(
-            client.patch(
-                "/identity/users/configuration",
-                json={"notify_cost_threshold": 200},
-            ),
-            TransactionRepository().add_cost(
-                database.Cost(
-                    name="water",
-                    value=200,
-                    user_id=marry.id,
-                    currency_id=1,
-                    category_id=1,
-                )
-            ),
-        )
+    repo = repositories.Cost()
+    _, cost = await asyncio.gather(
+        client.patch(
+            "/identity/users/configuration",
+            json={"notify_cost_threshold": 200},
+        ),
+        repo.add_cost(
+            database.Cost(
+                name="water",
+                value=200,
+                user_id=marry.id,
+                currency_id=1,
+                category_id=1,
+            )
+        ),
+    )
+    await repo.flush()
 
     add_cost_response: httpx.Response = await client_marry.patch(
         f"/transactions/costs/{cost.id}", json={"value": 300}

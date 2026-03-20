@@ -2,11 +2,11 @@ from fastapi import APIRouter, Body, Depends, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src import operational as op
+from src import application as op
+from src.application import authentication
 from src.config import settings
 from src.domain import users as domain
 from src.infrastructure import Response
-from src.operational import authentication
 
 from ..contracts.identity import (
     GetTokensRequestBody,
@@ -94,7 +94,7 @@ async def parial_update_user_configuration(
 ) -> Response[User]:
     """update the user configuration partially."""
 
-    instance: domain.User = await op.user_update(
+    instance: domain.User = await op.update_user_configuration(
         user, **body.model_dump(exclude_unset=True)
     )
 

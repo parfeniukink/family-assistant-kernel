@@ -15,8 +15,7 @@ import asyncio
 import sqlite3
 from datetime import datetime
 
-from src import domain
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 
 connection = sqlite3.connect("../db.sqlite3")
 
@@ -92,15 +91,10 @@ async def migrate_cost_categories():
         database.CostCategory(name=data[0]) for data in cost_category_names
     ]
 
-    async with database.transaction():
-        tasks = [
-            domain.transactions.TransactionRepository().add_cost_category(
-                candidate
-            )
-            for candidate in cost_category_candidates
-        ]
-
-        await asyncio.gather(*tasks)
+    repo = repositories.Cost()
+    for candidate in cost_category_candidates:
+        await repo.add_cost_category(candidate)
+    await repo.flush()
 
 
 async def migrate_costs():
@@ -120,13 +114,10 @@ async def migrate_costs():
         for data in costs_payloads
     ]
 
-    async with database.transaction():
-        tasks = [
-            domain.transactions.TransactionRepository().add_cost(candidate)
-            for candidate in candidates
-        ]
-
-        await asyncio.gather(*tasks)
+    repo = repositories.Cost()
+    for candidate in candidates:
+        await repo.add_cost(candidate)
+    await repo.flush()
 
 
 async def migrate_incomes():
@@ -154,13 +145,10 @@ async def migrate_incomes():
         for data in costs_payloads
     ]
 
-    async with database.transaction():
-        tasks = [
-            domain.transactions.TransactionRepository().add_income(candidate)
-            for candidate in candidates
-        ]
-
-        await asyncio.gather(*tasks)
+    repo = repositories.Income()
+    for candidate in candidates:
+        await repo.add_income(candidate)
+    await repo.flush()
 
 
 async def migrate_exchanges():
@@ -180,13 +168,10 @@ async def migrate_exchanges():
         for data in payloads
     ]
 
-    async with database.transaction():
-        tasks = [
-            domain.transactions.TransactionRepository().add_exchange(candidate)
-            for candidate in candidates
-        ]
-
-        await asyncio.gather(*tasks)
+    repo = repositories.Exchange()
+    for candidate in candidates:
+        await repo.add_exchange(candidate)
+    await repo.flush()
 
 
 async def migrate():

@@ -11,7 +11,7 @@ import argparse
 import asyncio
 import sys
 
-from src.infrastructure import database
+from src.infrastructure import database, repositories
 
 
 async def main() -> int:
@@ -54,13 +54,11 @@ async def main() -> int:
     )
 
     try:
-        async with database.transaction() as session:
-            session.add(currency)
-            await session.flush()
-            currency_id = currency.id
+        repo = repositories.Currency()
+        await repo.add_currency(currency)
+        await repo.flush()
 
         print(f"\nCurrency created successfully!")
-        print(f"\nID: {currency_id}")
         print(f"\nName: {args.name}")
         print(f"\nSign: {args.sign}")
         print(

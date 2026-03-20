@@ -33,68 +33,95 @@ make check            # lint (flake8, isort, black, mypy)
 
 ```
 src/
-├── main.py           # FastAPI app entrypoint
-├── http/             # Presentation tier
-│   ├── resources/    # API endpoints (routers)
-│   └── contracts/    # Request/response Pydantic schemas
-├── operational/      # Application tier (use cases, orchestration)
-│   ├── authentication.py  # Login, token refresh, logout operations
-│   └── authorization.py   # Request authorization (JWT + legacy token)
-├── domain/           # Business model tier
-│   ├── auth/         # JWT token entities and refresh token repository
-│   ├── transactions/ # Costs, Incomes, Exchanges, CostShortcuts
-│   ├── equity/       # Currency and equity management
-│   ├── users/        # User entities and repository
-│   └── notifications/
-├── infrastructure/   # Infrastructure tier
-│   ├── security.py   # Password hashing (Argon2), JWT creation/validation
-│   └── database/
-│       ├── tables.py     # SQLAlchemy ORM models
-│       ├── cqs.py        # Command/Query separation (transaction context)
-│       └── repository.py # Base repository with pagination
-└── integrations/     # External services (monobank)
+├── main.py              # FastAPI app entrypoint
+├── http/                # Presentation tier
+│   ├── resources/       # API endpoints (routers)
+│   └── contracts/       # Request/response Pydantic schemas
+├── application/         # Application tier (use cases, orchestration)
+│   ├── authentication.py  # Login, token refresh, logout
+│   ├── analytics.py       # Analytics use cases
+│   ├── news.py            # AI-powered news extension
+│   ├── notifications.py   # Notification orchestration
+│   ├── scheduler.py       # Job scheduling orchestration
+│   ├── transactions.py    # Transaction CRUD orchestration
+│   └── users.py           # User operations
+├── domain/              # Pure business model (zero infra deps)
+│   ├── entities.py        # InternalData base class
+│   ├── types.py           # Shared type literals (IncomeSource)
+│   ├── equity/            # Currency and equity entities
+│   ├── jobs/              # Job entities and type registry
+│   ├── news/              # NewsItem entity
+│   ├── notifications/     # Notification entities
+│   ├── transactions/      # cost.py, income.py, exchange.py, value_objects.py
+│   └── users/             # User and UserConfiguration entities
+├── infrastructure/      # Infrastructure tier
+│   ├── agents/            # AI model setup (pydantic_ai)
+│   ├── database/          # SQLAlchemy ORM, CQS, DataAccessLayer (dal.py)
+│   ├── jobs/hooks/        # Job type handlers (news, relevance)
+│   ├── repositories/      # Per-aggregate repositories
+│   ├── query_services/    # Read-only query services (analytics)
+│   ├── security.py        # Password hashing (Argon2), JWT
+│   ├── cache.py           # Memcached client
+│   └── hooks.py           # App lifespan (startup/shutdown)
+└── integrations/        # External services (monobank)
 ```
 
 ### Key Patterns
 
-**CQS (Command Query Separation)**: Database writes require `async with database.transaction()` context. Queries can run concurrently outside transactions.
+**Repository Pattern**: Per-aggregate repositories in `src/infrastructure/repositories/` extend `DataAccessLayer` base class (in `database/dal.py`). Each repository manages its own session lifecycle:
 
 ```python
-# Write operation - requires transaction
-async with database.transaction() as session:
-    item = await repository.add_cost(candidate)
-    await session.flush()
+from src.infrastructure import database, repositories
 
-# Read operation - no transaction needed
-items = await repository.costs(user_id=1, offset=0, limit=10)
+# Write operation - repo manages session, flush() commits
+repo = repositories.Cost()
+item = await repo.add_cost(candidate)
+await repo.flush()
+
+# Read operation - no flush needed
+items = await repositories.Cost().costs(offset=0, limit=10)
+
+# Cross-repo transaction (shared session for atomicity)
+async with database.transaction() as session:
+    cost_repo = repositories.Cost(session=session)
+    currency_repo = repositories.Currency(session=session)
+    await cost_repo.add_cost(candidate)
+    await currency_repo.decrease_equity(currency_id, value)
+    # auto-commits on context exit
 ```
 
-**Repository Pattern**: Domain repositories in `src/domain/*/repository.py` extend `src.infrastructure.database.Repository` base class.
+**Domain Repositories**: `repositories.Cost` (costs, categories, shortcuts), `repositories.Income`, `repositories.Exchange`, `repositories.Currency` (currencies, equity), `repositories.User`, `repositories.News`, `repositories.Job`, `repositories.ExchangeRate`.
 
-**Data Flow**: HTTP Resources → Operational (orchestration) → Domain (repositories) → Infrastructure (database)
+**Query Services**: `TransactionsAnalyticsService` (read-only cross-entity analytics in `infrastructure/query_services/`).
+
+**Data Flow**: HTTP Resources → Application (orchestration) → Infrastructure (repositories) → Database
 
 ## Authentication
 
 JWT-based authentication with persistent refresh tokens. Supports backward compatibility with legacy token auth.
 
 **Endpoints** (`/auth`):
+
 - `POST /auth/login` - Authenticate with username/password, returns token pair
 - `POST /auth/refresh` - Exchange refresh token for new access token (refresh token reused)
 - `POST /auth/logout` - Revoke refresh token
 
 **Token Types**:
+
 - Access token: Short-lived (15 min default), used in `Authorization: Bearer <token>` header
 - Refresh token: Long-lived (7 days default), stored hashed in database, remains valid until expiration or logout
 
 **Security**:
+
 - Passwords hashed with Argon2 (OWASP recommended)
 - Refresh tokens stored as SHA256 hashes
 - Rate limiting on login (5/min, 20/hour) and refresh (10/min) endpoints
 
-**Authorization** (`src/operational/authorization.py`):
+**Authorization** (`src/application/authentication.py`):
+
 ```python
 # FastAPI dependency injection - auto-detects JWT vs legacy token
-from src.operational.authorization import authorize
+from src.application.authentication import authorize
 
 @router.get("/protected")
 async def protected_route(user: domain.User = Depends(authorize)):
@@ -106,11 +133,13 @@ async def protected_route(user: domain.User = Depends(authorize)):
 Environment variables prefixed with `FBB__` (nested: `FBB__DATABASE__HOST`). See `src/config/__init__.py` for all settings.
 
 **JWT Settings** (`FBB__JWT__*`):
+
 - `SECRET_KEY` - JWT signing key (change in production)
 - `ACCESS_TOKEN_EXPIRE_MINUTES` - Access token lifetime (default: 15)
 - `REFRESH_TOKEN_EXPIRE_DAYS` - Refresh token lifetime (default: 7)
 
 **Rate Limit Settings** (`FBB__RATE_LIMIT__*`):
+
 - `LOGIN_PER_MINUTE` / `LOGIN_PER_HOUR` - Login endpoint limits
 - `REFRESH_PER_MINUTE` - Token refresh endpoint limit
 
@@ -129,3 +158,4 @@ Environment variables prefixed with `FBB__` (nested: `FBB__DATABASE__HOST`). See
 - Python 3.12+
 - Type hints required (mypy with pydantic and sqlalchemy plugins)
 - `InternalData` base class for domain entities (Pydantic with `from_attributes=True`)
+

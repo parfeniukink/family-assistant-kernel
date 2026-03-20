@@ -15,11 +15,11 @@ from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.sql import text
 
+from src import application as op
 from src import domain, http
-from src import operational as op
+from src.application.authentication import http_bearer
 from src.config import settings
-from src.infrastructure import Cache, database, errors, factories
-from src.operational.authentication import http_bearer
+from src.infrastructure import Cache, database, errors, factories, repositories
 from tests.mock import Cache as MockedCache
 
 
@@ -40,7 +40,7 @@ def pytest_configure() -> None:
         logger.disable("src.infrastructure")
         logger.disable("src.presentation")
         logger.disable("src.domain")
-        logger.disable("src.operational")
+        logger.disable("src.application")
 
 
 # =====================================================================
@@ -97,9 +97,8 @@ def app(john: domain.users.User, marry: domain.users.User) -> FastAPI:
             raise errors.AuthenticationError("User not found")
 
         # Fetch user from database with joined relationships
-        # matches real authorize behavior in src/operational/authentication.py
-        user = await domain.users.UserRepository().user_by_id(user_id)
-        return domain.users.User.from_instance(user)
+        # matches real authorize behavior in src/application/authentication.py
+        return await repositories.User().user_by_id(user_id)
 
     # Override the authorize dependency using FastAPI's mechanism
     app.dependency_overrides[op.authorize] = mock_authorize
@@ -111,26 +110,22 @@ def app(john: domain.users.User, marry: domain.users.User) -> FastAPI:
 async def john() -> domain.users.User:
     """create default user 'John' for tests."""
 
-    async with database.transaction() as session:
-        user = await domain.users.UserRepository().add_user(
-            candidate=database.User(name="john")
-        )
-        await session.flush()  # get user id
+    repo = repositories.User()
+    user = await repo.add_user(candidate=database.User(name="john"))
+    await repo.flush()
 
-    return domain.users.User.from_instance(user)
+    return await repositories.User().user_by_id(user.id)
 
 
 @pytest.fixture
 async def marry() -> domain.users.User:
     """create default user 'Marry' for tests."""
 
-    async with database.transaction() as session:
-        user = await domain.users.UserRepository().add_user(
-            candidate=database.User(name="marry")
-        )
-        await session.flush()  # get user id
+    repo = repositories.User()
+    user = await repo.add_user(candidate=database.User(name="marry"))
+    await repo.flush()
 
-    return domain.users.User.from_instance(user)
+    return await repositories.User().user_by_id(user.id)
 
 
 @pytest.fixture

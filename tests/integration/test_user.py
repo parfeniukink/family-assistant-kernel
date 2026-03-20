@@ -7,6 +7,7 @@ import pytest
 from fastapi import status
 
 from src.domain import users as domain
+from src.infrastructure import repositories
 
 
 # ==================================================
@@ -76,7 +77,7 @@ async def test_user_retrieve(john, client):
 async def test_user_configuration_update(
     john, client, currencies, cost_categories, payload_id, payload
 ):
-    repository = domain.UserRepository()
+    repository = repositories.User()
     response: httpx.Response = await client.patch(
         "/identity/users/configuration", json=payload
     )
@@ -86,87 +87,77 @@ async def test_user_configuration_update(
     ]
 
     user = await repository.user_by_id(john.id)
+    cfg = user.configuration
 
     assert response.status_code == status.HTTP_200_OK, response.json()
 
     if payload_id == 1:
+        assert cfg.default_currency is not None
+        assert cfg.default_cost_category is not None
         assert (
-            user.default_currency_id
+            cfg.default_currency.id
             == configuration_raw_response["defaultCurrency"]["id"]
             == payload["defaultCurrencyId"]
         )
         assert (
-            user.default_cost_category_id
+            cfg.default_cost_category.id
             == configuration_raw_response["defaultCostCategory"]["id"]
             == payload["defaultCostCategoryId"]
         )
-        assert user.cost_snippets is None
-        assert user.income_snippets is None
+        assert cfg.cost_snippets is None
+        assert cfg.income_snippets is None
         assert (
-            user.show_equity
+            cfg.show_equity
             is configuration_raw_response["showEquity"]
             is False
         )
     elif payload_id == 2:
+        assert cfg.default_currency is None
+        assert configuration_raw_response["defaultCurrency"] is None
+        assert cfg.default_cost_category is not None
         assert (
-            user.default_currency_id
-            == configuration_raw_response["defaultCurrency"]
-            is None
-        )
-        assert (
-            user.default_cost_category_id
+            cfg.default_cost_category.id
             == configuration_raw_response["defaultCostCategory"]["id"]
             == payload["defaultCostCategoryId"]
         )
+        assert cfg.cost_snippets == configuration_raw_response["costSnippets"]
+        assert cfg.cost_snippets is None
         assert (
-            user.cost_snippets
-            == configuration_raw_response["costSnippets"]
-            is None
-        )
-        assert (
-            user.income_snippets
+            cfg.income_snippets
             is configuration_raw_response["incomeSnippets"]
             is None
         )
         assert (
-            user.show_equity
+            cfg.show_equity
             is configuration_raw_response["showEquity"]
             is False
         )
     elif payload_id == 3:
+        assert cfg.default_currency is None
+        assert configuration_raw_response["defaultCurrency"] is None
+        assert cfg.default_cost_category is None
+        assert configuration_raw_response["defaultCostCategory"] is None
         assert (
-            user.default_currency_id
-            == configuration_raw_response["defaultCurrency"]
-            is None
-        )
-        assert (
-            user.default_cost_category_id
-            == configuration_raw_response["defaultCostCategory"]
-            is None
-        )
-        assert (
-            user.cost_snippets
+            cfg.cost_snippets
             == configuration_raw_response["costSnippets"]
             == ["Coffee", "Water"]
         )
         assert (
-            user.income_snippets
+            cfg.income_snippets
             == configuration_raw_response["incomeSnippets"]
             == ["Office", "Teaching"]
         )
         assert (
-            user.show_equity
+            cfg.show_equity
             is configuration_raw_response["showEquity"]
             is False
         )
     elif payload_id == 4:
         assert (
-            user.show_equity
-            is configuration_raw_response["showEquity"]
-            is True
+            cfg.show_equity is configuration_raw_response["showEquity"] is True
         )
     elif payload_id == 5:
-        assert user.notify_cost_threshold == 100_01
+        assert cfg.notify_cost_threshold == 100_01
         assert configuration_raw_response["notifyCostThreshold"] == 100.01
 
 

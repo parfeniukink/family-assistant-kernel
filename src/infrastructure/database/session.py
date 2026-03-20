@@ -12,7 +12,12 @@ from src.config import settings
 
 @functools.lru_cache(maxsize=1)
 def engine_factory(**extra) -> AsyncEngine:
-    engine = create_async_engine(settings.database.url, future=True, **extra)
+    engine = create_async_engine(
+        settings.database.url,
+        future=True,
+        connect_args={"server_settings": {"timezone": settings.timezone}},
+        **extra,
+    )
     return engine
 
 

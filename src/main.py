@@ -5,15 +5,15 @@ the overall structure is inspired by DDD (Eric Evans):
     ↓ http (presentation tier)
         ↓ resources (endpoints)
         ↓ contracts (data structures)
-    ↓ operational (application tier)
-    ↓ domain (business model tier)
+    ↓ application (operational tier)
+    ↓ infrastructure (infrastructure tier)
+        ↓ database (ORM, tables)
+        ↓ config (global configuration)
     ↓ integrations (infrastructure tier)
         ↓ openai
         ↓ monobank
         ↓ privatbank
-    ↓ infrastructure (infrastructure tier)
-        ↓ database (ORM, tables)
-        ↓ config (global configuration)
+    ↓ domain (business model tier)
 
 the main purpose of the application is working with TRANSACTIONS (costs,
 incomes, exchanges). to claim analytics based on that information.
@@ -27,6 +27,8 @@ so the overall workflow would look next:
 also, the equity and all the transactions are shared to all users in the system
 so each of them can see the transactions themselves, analytics and equity.
 on the other hand user settings are not sharable for others.
+
+NOTE: src.application.scheduler.jobs imported for _REGISTRY
 """
 
 import sentry_sdk
@@ -41,9 +43,11 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+import src.application.scheduler.jobs  # noqa: F401
+from src import application as op
 from src import http
 from src.config import settings
-from src.infrastructure import errors, factories, hooks, middleware
+from src.infrastructure import errors, factories, middleware
 from src.infrastructure.analytics import RequestAnalyticsMiddleware
 from src.infrastructure.middleware import SecurityHeadersMiddleware
 
@@ -120,10 +124,12 @@ app: FastAPI = factories.asgi_app(
         http.incomes_router,
         http.exchange_router,
         http.notifications_router,
+        http.news_router,
+        http.jobs_router,
     ),
     middlewares=middlewares,
     exception_handlers=exception_handlers,
-    lifespan=hooks.lifespan_event,
+    lifespan=op.lifespan_event,
 )
 
 app.state.limiter = Limiter(key_func=get_remote_address)

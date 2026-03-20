@@ -9,9 +9,7 @@ import argparse
 import asyncio
 import sys
 
-from sqlalchemy import select
-
-from src.infrastructure import database, security
+from src.infrastructure import repositories, security
 
 
 async def main() -> int:
@@ -32,22 +30,20 @@ async def main() -> int:
         # Hash password with Argon2
         password_hash = security.hash_password(args.password)
 
-        # Update user password
-        async with database.transaction() as session:
-            result = await session.execute(
-                select(database.User).where(database.User.id == args.id)
+        # Verify user exists
+        repo = repositories.User()
+        try:
+            await repo.user_by_id(args.id)
+        except Exception:
+            print(
+                f"Error: User with ID {args.id} not found",
+                file=sys.stderr,
             )
-            user = result.scalar_one_or_none()
+            return 1
 
-            if user is None:
-                print(
-                    f"Error: User with ID {args.id} not found",
-                    file=sys.stderr,
-                )
-                return 1
-
-            user.password_hash = password_hash
-            await session.flush()
+        # Update user password
+        await repo.update_user(args.id, password_hash=password_hash)
+        await repo.flush()
 
         print(f"\nPassword updated successfully for user ID {args.id}!")
 

@@ -2,13 +2,12 @@ import asyncio
 import contextlib
 import json
 import pickle
-from typing import Self
+from typing import Any, Self
 
 from aiomcache import FlagClient
 
 from src.config import settings
-
-from . import errors
+from src.infrastructure import errors
 
 
 class Cache:
@@ -57,12 +56,23 @@ class Cache:
         else:
             return self._client
 
-    async def set(self, namespace: str, key: str, value: dict) -> bool | None:
-        return await self.client.set(
-            f"{namespace}:{key}".encode(), str(value).encode()
+    async def set(
+        self,
+        namespace: str,
+        key: str,
+        value: dict | list,
+        exptime: int = 0,
+    ) -> bool | None:
+
+        instance = await self.client.set(
+            f"{namespace}:{key}".encode(),
+            json.dumps(value).encode(),
+            exptime=exptime,
         )
 
-    async def get(self, namespace: str, key: str) -> dict:
+        return instance
+
+    async def get(self, namespace: str, key: str) -> Any:
         result: bytes | None = await self.client.get(
             f"{namespace}:{key}".encode()
         )
@@ -71,8 +81,7 @@ class Cache:
             raise errors.NotFoundError
 
         try:
-            # replace ' with "
-            return json.loads(result.decode().replace("'", '"'))
+            return json.loads(result)
         except json.JSONDecodeError as error:
             raise ValueError(
                 "cache value must be JSON serializable"

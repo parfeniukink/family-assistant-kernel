@@ -4,8 +4,8 @@
 # ─────────────────────────────────────────────────────────
 
 [project]
-name = "family-budget-bot"
-version = "0.1.0"
+name = "family-assistant"
+version = "1.0.0"
 readme = { file = "README.md", content-type = "text/markdown" }
 authors = [ { name = "Dmytro Parfeniuk" } ]
 requires-python = ">=3.12.0,<4.0"
@@ -20,15 +20,17 @@ dependencies = [
     "alembic~=1.16.2",                  # migrations tool
     "argon2-cffi~=23.1.0",              # password hashing (OWASP recommended)
     "arq~=0.26.3",                      # async job queues in python on redis
+    "beautifulsoup4~=4.13",             # HTML parsing for web crawlers
     "asyncpg~=0.30.0",                  # async PostgreSQL driver
     "fastapi~=0.115.14",                # web framework
+    "feedparser~=6.0",                  # RSS/Atom feed parser
     "gunicorn~=23.0.0",                 # application web server (better workers experience)
     "httpx~=0.28.1",                    # http client
     "loguru~=0.7.3",                    # better logging experience
-    "pydantic~=2.11.0",                 # data validation
-    "pydantic-ai~=0.3.5",               # LLM Client
-    "pydantic-settings~=2.10.0",        # better settings experience
-    "pyjwt~=2.9.0",                     # JWT encoding/decoding
+    "pydantic~=2.12.0",                 # data validation
+    "pydantic-ai~=1.70.0",              # LLM Client
+    "pydantic-settings~=2.13.1",        # better settings experience
+    "pyjwt~=2.12.1",                    # JWT encoding/decoding
     "sentry-sdk[fastapi]~=2.32.0",      #  issues monitoring, profiling
     "slowapi~=0.1.9",                   # rate limiting for FastAPI
     "sqlalchemy[asyncio,mypy]~=2.0.41", # async ORM (includes mypy extension)

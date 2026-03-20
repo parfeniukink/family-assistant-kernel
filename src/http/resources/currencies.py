@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Body, Depends, status
 
-from src import operational as op
-from src.domain import equity as domain
-from src.infrastructure import Response, ResponseMulti, database
+from src import application as op
+from src.infrastructure import Response, ResponseMulti, database, repositories
 
 from ..contracts import Currency, CurrencyCreateBody
 
@@ -10,11 +9,13 @@ router = APIRouter(prefix="/currencies", tags=["Currencies"])
 
 
 @router.get("", status_code=status.HTTP_200_OK)
-async def currencies(_=Depends(op.authorize)) -> ResponseMulti[Currency]:
+async def currencies(
+    _=Depends(op.authorize),
+) -> ResponseMulti[Currency]:
     """Return available cost categories."""
 
     currencies: tuple[database.Currency, ...] = (
-        await domain.EquityRepository().currencies()
+        await repositories.Currency().currencies()
     )
 
     return ResponseMulti[Currency](
@@ -29,9 +30,10 @@ async def currency_create(
 ) -> Response[Currency]:
     """Create yet another equity."""
 
-    async with database.transaction():
-        instance = await domain.EquityRepository().add_currency(
-            candidate=database.Currency(name=body.name, sign=body.sign)
-        )
+    repo = repositories.Currency()
+    instance = await repo.add_currency(
+        candidate=database.Currency(name=body.name, sign=body.sign)
+    )
+    await repo.flush()
 
     return Response[Currency](result=Currency.from_instance(instance))

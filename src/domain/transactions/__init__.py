@@ -26,11 +26,11 @@ __all__ = (
     "CostsByCategory",
     "Exchange",
     "Income",
+    "IncomeSource",
     "IncomesAnalytics",
     "OperationType",
     "Transaction",
     "Transaction",
-    "TransactionRepository",
     "TransactionsBasicAnalytics",
     "TransactionsFilter",
     "as_cents",
@@ -39,14 +39,15 @@ __all__ = (
     "timestamp_from_raw",
 )
 
+from .cost import Cost, CostCategory
 from .data_transformation import (
     as_cents,
     cents_from_raw,
     pretty_money,
     timestamp_from_raw,
 )
-from .entities import Cost, CostCategory, Exchange, Income
-from .repository import TransactionRepository
+from .exchange import Exchange
+from .income import Income, IncomeSource
 from .value_objects import (
     AnalyticsPeriod,
     BasicAnalyticsResult,
